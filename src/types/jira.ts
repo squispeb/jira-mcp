@@ -153,3 +153,30 @@ export interface JiraCreateIssueResponse {
   key: string;
   self: string;
 }
+
+export interface JiraIssueLinkType {
+  id: string;
+  name: string;
+  inward: string;
+  outward: string;
+  self: string;
+}
+
+export interface JiraIssueLinkTypesResponse {
+  issueLinkTypes: JiraIssueLinkType[];
+}
+
+export interface JiraIssueLinkRequest {
+  type: {
+    name: string;
+  };
+  inwardIssue: {
+    key: string;
+  };
+  outwardIssue: {
+    key: string;
+  };
+  comment?: {
+    body: JiraADFDocument;
+  };
+}

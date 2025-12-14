@@ -5,6 +5,8 @@ import {
   JiraCreateIssueResponse,
   JiraError,
   JiraIssue,
+  JiraIssueLinkRequest,
+  JiraIssueLinkTypesResponse,
   JiraIssueTypeResponse,
   JiraProject,
   JiraSearchParams,
@@ -378,6 +380,45 @@ export class JiraService {
         description: this.createTextADF(content),
       },
     });
+  }
+
+  /**
+   * Get all available issue link types
+   */
+  async getIssueLinkTypes(): Promise<JiraIssueLinkTypesResponse> {
+    const endpoint = `/rest/api/3/issueLinkType`;
+    return this.request<JiraIssueLinkTypesResponse>(endpoint);
+  }
+
+  /**
+   * Create a link between two issues
+   */
+  async linkIssues(
+    inwardIssueKey: string,
+    outwardIssueKey: string,
+    linkTypeName: string,
+    comment?: string,
+  ): Promise<void> {
+    const endpoint = `/rest/api/3/issueLink`;
+    const payload: JiraIssueLinkRequest = {
+      type: {
+        name: linkTypeName,
+      },
+      inwardIssue: {
+        key: inwardIssueKey,
+      },
+      outwardIssue: {
+        key: outwardIssueKey,
+      },
+    };
+
+    if (comment) {
+      payload.comment = {
+        body: this.createTextADF(comment),
+      };
+    }
+
+    await this.request<void>(endpoint, "POST", payload);
   }
 }
 

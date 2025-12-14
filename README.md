@@ -221,6 +221,30 @@ Replace the description of an existing Jira issue:
 /update_issue_description issueKey:PROJECT-123 description:"New detailed description with acceptance criteria"
 ```
 
+### 16. Get Link Types
+
+Get all available issue link types to understand relationship options:
+
+```
+/get_link_types
+```
+
+This returns link types like:
+
+- **Blocks**: "Blocks" / "Blocked by"
+- **Duplicate**: "Duplicates" / "Duplicated by"
+- **Relates**: "Relates to" / "Relates to"
+
+### 17. Link Issues
+
+Create a relationship between two issues (blocks, relates to, duplicates, etc.):
+
+```
+/link_issues inwardIssue:PROJECT-105 outwardIssue:PROJECT-54 linkType:"Blocks" comment:"Bug fix must be completed before feature"
+```
+
+**Note**: For "Blocks" links, the inward issue is the one doing the blocking, and the outward issue is the one being blocked.
+
 ## Command Examples
 
 🚀 **Jira MCP Server + Cursor IDE = Your AI-powered Jira assistant!** Here’s how it makes devs work smarter:
@@ -273,7 +297,15 @@ Update statuses without switching contexts!
 → AI replaces the issue description in Jira  
 Keep product docs and dev context in sync!
 
-🔥 **TL;DR:** Your AI now speaks Jira + Cursor! Fetch projects, filter issues, track changes, manage epics, add comments, edit descriptions & fix bugs—all inside your IDE.  
+🔗 **"Show me what link types are available"**  
+→ AI fetches all issue link types (Blocks, Relates, Duplicate, etc.)  
+Understand your relationship options!
+
+🚫 **"PROJECT-105 blocks PROJECT-54 because the bug needs to be fixed first"**  
+→ AI creates a "blocks" link between issues with a comment  
+Track dependencies and blockers automatically!
+
+🔥 **TL;DR:** Your AI now speaks Jira + Cursor! Fetch projects, filter issues, track changes, manage epics, link related issues, add comments, edit descriptions & fix bugs—all inside your IDE.  
 From backlog to bug fixes, MCP Server makes Jira work for you!
 
 ## Example Workflows
@@ -374,6 +406,28 @@ From backlog to bug fixes, MCP Server makes Jira work for you!
    ```
    Show me the highest priority pending issues and help me plan my day
    ```
+
+### Link Related Issues and Track Dependencies
+
+1. Connect to the Jira MCP server in Cursor.
+2. Discover available link types:
+   ```
+   /get_link_types
+   ```
+3. Create a "blocks" relationship (e.g., bug fix must be completed before feature):
+   ```
+   /link_issues inwardIssue:PROJECT-105 outwardIssue:PROJECT-54 linkType:"Blocks" comment:"Bug in PPG calculation must be fixed before Matchweek Bonus feature"
+   ```
+4. Link duplicate issues:
+   ```
+   /link_issues inwardIssue:PROJECT-200 outwardIssue:PROJECT-198 linkType:"Duplicate"
+   ```
+5. Relate issues that should be worked on together:
+   ```
+   /link_issues inwardIssue:PROJECT-50 outwardIssue:PROJECT-51 linkType:"Relates"
+   ```
+
+**Note**: For "Blocks" links, the inward issue blocks the outward issue. So if PROJECT-105 blocks PROJECT-54, you cannot complete PROJECT-54 until PROJECT-105 is done.
 
 ## Development
 

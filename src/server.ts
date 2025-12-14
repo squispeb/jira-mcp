@@ -589,6 +589,103 @@ export class JiraMcpServer {
         }
       },
     );
+
+    // Tool to get available issue link types
+    this.server.tool(
+      "get_link_types",
+      "Get all available issue link types (e.g., Blocks, Duplicate, Relates)",
+      {},
+      async () => {
+        try {
+          console.log("Fetching issue link types");
+          const response = await this.jiraService.getIssueLinkTypes();
+          const linkTypes = response.issueLinkTypes
+            .map(
+              (type) =>
+                `- ${type.name}: "${type.outward}" / "${type.inward}" (ID: ${type.id})`,
+            )
+            .join("\n");
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Available issue link types:\n${linkTypes}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error("Error fetching issue link types:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error fetching issue link types: ${error}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Tool to link two issues
+    this.server.tool(
+      "link_issues",
+      "Create a link between two issues (e.g., 'blocks', 'relates to', 'duplicates')",
+      {
+        inwardIssue: z
+          .string()
+          .describe(
+            "The key of the inward issue (e.g., PROJ-123). For 'Blocks' links, this is the blocking issue.",
+          ),
+        outwardIssue: z
+          .string()
+          .describe(
+            "The key of the outward issue (e.g., PROJ-456). For 'Blocks' links, this is the blocked issue.",
+          ),
+        linkType: z
+          .string()
+          .describe(
+            'The name of the link type (e.g., "Blocks", "Duplicate", "Relates"). Use get_link_types to see available types.',
+          ),
+        comment: z
+          .string()
+          .optional()
+          .describe(
+            "Optional comment to add to the outward issue explaining the link",
+          ),
+      },
+      async ({ inwardIssue, outwardIssue, linkType, comment }) => {
+        try {
+          console.log(
+            `Linking ${inwardIssue} to ${outwardIssue} with type "${linkType}"`,
+          );
+          await this.jiraService.linkIssues(
+            inwardIssue,
+            outwardIssue,
+            linkType,
+            comment,
+          );
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Successfully linked ${inwardIssue} to ${outwardIssue} (${linkType})`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error("Error linking issues:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error linking issues: ${error}`,
+              },
+            ],
+          };
+        }
+      },
+    );
   }
 
   async connect(transport: Transport): Promise<void> {
