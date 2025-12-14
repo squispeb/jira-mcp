@@ -348,14 +348,14 @@ export class JiraService {
   }
 
   /**
-   * Attach an existing issue to an epic (set parent)
+   * Set the parent of an issue (works for both epic→issue and issue→subtask relationships)
    */
-  async attachToEpic(issueKey: string, epicKey: string): Promise<void> {
+  async setParentIssue(issueKey: string, parentKey: string): Promise<void> {
     const endpoint = `/rest/api/3/issue/${issueKey}`;
     await this.request<void>(endpoint, "PUT", {
       fields: {
         parent: {
-          key: epicKey,
+          key: parentKey,
         },
       },
     });

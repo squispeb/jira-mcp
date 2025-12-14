@@ -205,12 +205,12 @@ Create a new issue linked to a parent epic:
 /create_issue_with_parent projectKey:PROJECT issueType:Story summary:"Implement user authentication" parentKey:PROJECT-100 description:"Add OAuth2 login flow"
 ```
 
-### 14. Attach to Epic
+### 14. Set Parent Issue
 
-Link an existing issue to a parent epic:
+Link an issue to a parent (works for epic→issue and issue→subtask relationships):
 
 ```
-/attach_to_epic issueKey:PROJECT-456 epicKey:PROJECT-100
+/set_parent_issue issueKey:PROJECT-456 parentKey:PROJECT-100
 ```
 
 ### 15. Update Issue Description
@@ -261,9 +261,9 @@ Understand project structure at a glance!
 → AI creates the epic for you  
 Plan projects faster with automation!
 
-🔗 **"Link issue PROJECT-456 to epic PROJECT-100"**  
-→ AI organizes your backlog automatically  
-Keep your epics organized effortlessly!
+🔗 **"Link issue PROJECT-456 to parent PROJECT-100"**  
+→ AI sets parent relationship (works for epics or subtasks)  
+Organize your backlog with flexible hierarchies!
 
 ⚡ **"Move PROJECT-123 to In Progress"**  
 → AI transitions the issue through your workflow  
@@ -336,7 +336,7 @@ From backlog to bug fixes, MCP Server makes Jira work for you!
    ```
 4. Link existing issues to the epic:
    ```
-   /attach_to_epic issueKey:PROJECT-456 epicKey:PROJECT-100
+   /set_parent_issue issueKey:PROJECT-456 parentKey:PROJECT-100
    ```
 5. View all epic children to track progress:
    ```

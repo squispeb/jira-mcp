@@ -515,38 +515,36 @@ export class JiraMcpServer {
       },
     );
 
-    // Tool to attach an existing issue to an epic
+    // Tool to set parent relationship (works for epics, subtasks, etc.)
     this.server.tool(
-      "attach_to_epic",
-      "Link an existing issue to a parent epic",
+      "set_parent_issue",
+      "Set the parent of an issue (for epic→issue or issue→subtask relationships)",
       {
         issueKey: z
           .string()
-          .describe("The key of the issue to attach (e.g., PROJ-456)"),
-        epicKey: z
+          .describe("The key of the child issue (e.g., PROJ-456)"),
+        parentKey: z
           .string()
-          .describe("The key of the parent epic (e.g., PROJ-123)"),
+          .describe("The key of the parent issue (e.g., PROJ-123)"),
       },
-      async ({ issueKey, epicKey }) => {
+      async ({ issueKey, parentKey }) => {
         try {
-          console.log(`Attaching issue ${issueKey} to epic ${epicKey}`);
-          await this.jiraService.attachToEpic(issueKey, epicKey);
-          console.log(
-            `Successfully attached issue ${issueKey} to epic ${epicKey}`,
-          );
+          console.log(`Setting parent of ${issueKey} to ${parentKey}`);
+          await this.jiraService.setParentIssue(issueKey, parentKey);
+          console.log(`Successfully set parent of ${issueKey} to ${parentKey}`);
           return {
             content: [
               {
                 type: "text",
-                text: `Issue ${issueKey} successfully attached to epic ${epicKey}`,
+                text: `Issue ${issueKey} successfully linked to parent ${parentKey}`,
               },
             ],
           };
         } catch (error) {
-          console.error(`Error attaching issue to epic:`, error);
+          console.error(`Error setting parent issue:`, error);
           return {
             content: [
-              { type: "text", text: `Error attaching issue to epic: ${error}` },
+              { type: "text", text: `Error setting parent issue: ${error}` },
             ],
           };
         }
