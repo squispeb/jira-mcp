@@ -694,46 +694,161 @@ export class JiraMcpServer {
     );
 
     this.server.tool(
-      "get_boards",
-      "Get all boards accessible to the current user",
+      "create_sprint",
+      "Create a new sprint for a board",
       {
-        maxResults: z
+        name: z.string().min(1).describe("Sprint name"),
+        originBoardId: z
           .number()
-          .optional()
-          .describe("Maximum number of boards to return (default: 50)"),
-        startAt: z
-          .number()
-          .optional()
-          .describe("Starting index for pagination (default: 0)"),
-        projectKeyOrId: z
+          .describe("Board ID where the sprint will be created"),
+        startDate: z
           .string()
           .optional()
-          .describe("Filter boards by project key or ID"),
-        boardType: z
-          .enum(["scrum", "kanban"])
-          .optional()
-          .describe("Filter boards by type"),
+          .describe("Sprint start date (ISO 8601)"),
+        endDate: z.string().optional().describe("Sprint end date (ISO 8601)"),
+        goal: z.string().optional().describe("Optional sprint goal"),
       },
-      async ({ maxResults, startAt, projectKeyOrId, boardType }) => {
+      async ({ name, originBoardId, startDate, endDate, goal }) => {
         try {
-          console.log("Fetching boards");
-          const response = await this.jiraService.getAllBoards(
-            maxResults,
-            startAt,
-            projectKeyOrId,
-            boardType,
-          );
-          console.log(`Successfully fetched ${response.values.length} boards`);
+          console.log(`Creating sprint ${name} on board ${originBoardId}`);
+          const response = await this.jiraService.createSprint({
+            name,
+            originBoardId,
+            startDate,
+            endDate,
+            goal,
+          });
+          console.log(`Successfully created sprint ${response.name}`);
           return {
             content: [
               { type: "text", text: JSON.stringify(response, null, 2) },
             ],
           };
         } catch (error) {
-          console.error("Error fetching boards:", error);
+          console.error("Error creating sprint:", error);
           return {
             content: [
-              { type: "text", text: `Error fetching boards: ${error}` },
+              { type: "text", text: `Error creating sprint: ${error}` },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "add_issues_to_sprint",
+      "Add issues to a sprint",
+      {
+        sprintId: z.number().describe("Sprint ID to add issues to"),
+        issues: z
+          .array(z.string())
+          .min(1)
+          .describe('Issue keys or IDs to add (e.g., ["STLMVP-1", "10001"])'),
+      },
+      async ({ sprintId, issues }) => {
+        try {
+          console.log(`Adding ${issues.length} issues to sprint ${sprintId}`);
+          await this.jiraService.addIssuesToSprint(sprintId, issues);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Added ${issues.length} issues to sprint ${sprintId}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error("Error adding issues to sprint:", error);
+          return {
+            content: [
+              { type: "text", text: `Error adding issues to sprint: ${error}` },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "remove_issues_from_sprint",
+      "Move issues out of a sprint back to the backlog",
+      {
+        issues: z
+          .array(z.string())
+          .min(1)
+          .describe("Issue keys or IDs to remove from sprint"),
+      },
+      async ({ issues }) => {
+        try {
+          console.log(`Removing ${issues.length} issues from sprint`);
+          await this.jiraService.removeIssuesFromSprint(issues);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Removed ${issues.length} issues from sprint back to backlog`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error("Error removing issues from sprint:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error removing issues from sprint: ${error}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "get_sprint_issues",
+      "Get issues for a specific sprint",
+      {
+        boardId: z.number().describe("Board ID that contains the sprint"),
+        sprintId: z.number().describe("Sprint ID to fetch issues for"),
+        jql: z
+          .string()
+          .optional()
+          .describe("Optional JQL query to filter sprint issues"),
+        maxResults: z
+          .number()
+          .optional()
+          .describe("Maximum number of issues to return (default: 50)"),
+        startAt: z
+          .number()
+          .optional()
+          .describe("Starting index for pagination (default: 0)"),
+      },
+      async ({ boardId, sprintId, jql, maxResults, startAt }) => {
+        try {
+          console.log(
+            `Fetching issues for sprint ${sprintId} on board ${boardId}`,
+          );
+          const response = await this.jiraService.getSprintIssues(
+            boardId,
+            sprintId,
+            {
+              jql,
+              maxResults,
+              startAt,
+            },
+          );
+          console.log(
+            `Successfully fetched ${response.issues.length} issues from sprint ${sprintId}`,
+          );
+          return {
+            content: [
+              { type: "text", text: JSON.stringify(response, null, 2) },
+            ],
+          };
+        } catch (error) {
+          console.error("Error fetching sprint issues:", error);
+          return {
+            content: [
+              { type: "text", text: `Error fetching sprint issues: ${error}` },
             ],
           };
         }
@@ -948,48 +1063,6 @@ export class JiraMcpServer {
           return {
             content: [
               { type: "text", text: `Error fetching board backlog: ${error}` },
-            ],
-          };
-        }
-      },
-    );
-
-    this.server.tool(
-      "create_sprint",
-      "Create a new sprint for a board",
-      {
-        name: z.string().min(1).describe("Sprint name"),
-        originBoardId: z
-          .number()
-          .describe("Board ID where the sprint will be created"),
-        startDate: z
-          .string()
-          .optional()
-          .describe("Sprint start date (ISO 8601)"),
-        endDate: z.string().optional().describe("Sprint end date (ISO 8601)"),
-        goal: z.string().optional().describe("Optional sprint goal"),
-      },
-      async ({ name, originBoardId, startDate, endDate, goal }) => {
-        try {
-          console.log(`Creating sprint ${name} on board ${originBoardId}`);
-          const response = await this.jiraService.createSprint({
-            name,
-            originBoardId,
-            startDate,
-            endDate,
-            goal,
-          });
-          console.log(`Successfully created sprint ${response.name}`);
-          return {
-            content: [
-              { type: "text", text: JSON.stringify(response, null, 2) },
-            ],
-          };
-        } catch (error) {
-          console.error("Error creating sprint:", error);
-          return {
-            content: [
-              { type: "text", text: `Error creating sprint: ${error}` },
             ],
           };
         }

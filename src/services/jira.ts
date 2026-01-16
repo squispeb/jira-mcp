@@ -534,6 +534,57 @@ export class JiraService {
     return response;
   }
 
+  async addIssuesToSprint(sprintId: number, issues: string[]): Promise<void> {
+    const endpoint = `/rest/agile/1.0/sprint/${sprintId}/issue`;
+    const payload = { issues };
+    await this.request<void>(endpoint, "POST", payload);
+    writeLogs(`jira-sprint-${sprintId}-add-issues.json`, payload);
+  }
+
+  async removeIssuesFromSprint(issues: string[]): Promise<void> {
+    const endpoint = `/rest/agile/1.0/backlog/issue`;
+    const payload = { issues };
+    await this.request<void>(endpoint, "POST", payload);
+    writeLogs(`jira-backlog-move-${new Date().toISOString()}.json`, payload);
+  }
+
+  async getSprintIssues(
+    boardId: number,
+    sprintId: number,
+    params?: {
+      jql?: string;
+      maxResults?: number;
+      startAt?: number;
+      fields?: string[];
+      expand?: string[];
+    },
+  ): Promise<JiraSearchResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.maxResults) {
+      queryParams.append("maxResults", String(params.maxResults));
+    }
+    if (params?.startAt) {
+      queryParams.append("startAt", String(params.startAt));
+    }
+    if (params?.jql) {
+      queryParams.append("jql", params.jql);
+    }
+    if (params?.fields) {
+      params.fields.forEach((field) => queryParams.append("fields", field));
+    }
+    if (params?.expand) {
+      params.expand.forEach((exp) => queryParams.append("expand", exp));
+    }
+
+    const endpoint = `/rest/agile/1.0/board/${boardId}/sprint/${sprintId}/issue?${queryParams.toString()}`;
+    const response = await this.request<JiraSearchResponse>(endpoint);
+    writeLogs(
+      `jira-sprint-${sprintId}-issues-${new Date().toISOString()}.json`,
+      response,
+    );
+    return response;
+  }
+
   async getBoardBacklog(
     boardId: number,
     params?: {
