@@ -1,6 +1,10 @@
 import axios, { AxiosError } from "axios";
 import {
   JiraADFDocument,
+  JiraBoard,
+  JiraBoardConfiguration,
+  JiraBoardIssue,
+  JiraBoardsResponse,
   JiraComment,
   JiraCreateIssueResponse,
   JiraError,
@@ -11,6 +15,8 @@ import {
   JiraProject,
   JiraSearchParams,
   JiraSearchResponse,
+  JiraSprint,
+  JiraSprintsResponse,
   JiraTransitionsResponse,
 } from "~/types/jira";
 import fs from "fs";
@@ -419,6 +425,180 @@ export class JiraService {
     }
 
     await this.request<void>(endpoint, "POST", payload);
+  }
+
+  async getAllBoards(
+    maxResults: number = 50,
+    startAt: number = 0,
+    projectKeyOrId?: string,
+    boardType?: "scrum" | "kanban",
+  ): Promise<JiraBoardsResponse> {
+    const queryParams = new URLSearchParams({
+      maxResults: String(maxResults),
+      startAt: String(startAt),
+    });
+    if (projectKeyOrId) {
+      queryParams.append("projectKeyOrId", projectKeyOrId);
+    }
+    if (boardType) {
+      queryParams.append("type", boardType);
+    }
+    const endpoint = `/rest/agile/1.0/board?${queryParams.toString()}`;
+    const response = await this.request<JiraBoardsResponse>(endpoint);
+    writeLogs(`jira-boards-${new Date().toISOString()}.json`, response);
+    return response;
+  }
+
+  async getBoard(boardId: number): Promise<JiraBoard> {
+    const endpoint = `/rest/agile/1.0/board/${boardId}`;
+    const response = await this.request<JiraBoard>(endpoint);
+    writeLogs(`jira-board-${boardId}.json`, response);
+    return response;
+  }
+
+  async getBoardIssues(
+    boardId: number,
+    params?: {
+      jql?: string;
+      maxResults?: number;
+      startAt?: number;
+      fields?: string[];
+      expand?: string[];
+    },
+  ): Promise<JiraSearchResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.maxResults) {
+      queryParams.append("maxResults", String(params.maxResults));
+    }
+    if (params?.startAt) {
+      queryParams.append("startAt", String(params.startAt));
+    }
+    if (params?.jql) {
+      queryParams.append("jql", params.jql);
+    }
+    if (params?.fields) {
+      params.fields.forEach((field) => queryParams.append("fields", field));
+    }
+    if (params?.expand) {
+      params.expand.forEach((exp) => queryParams.append("expand", exp));
+    }
+
+    const endpoint = `/rest/agile/1.0/board/${boardId}/issue?${queryParams.toString()}`;
+    const response = await this.request<JiraSearchResponse>(endpoint);
+    writeLogs(
+      `jira-board-${boardId}-issues-${new Date().toISOString()}.json`,
+      response,
+    );
+    return response;
+  }
+
+  async getBoardSprints(
+    boardId: number,
+    state?: "future" | "active" | "closed",
+    maxResults: number = 50,
+    startAt: number = 0,
+  ): Promise<JiraSprintsResponse> {
+    const queryParams = new URLSearchParams({
+      maxResults: String(maxResults),
+      startAt: String(startAt),
+    });
+    if (state) {
+      queryParams.append("state", state);
+    }
+    const endpoint = `/rest/agile/1.0/board/${boardId}/sprint?${queryParams.toString()}`;
+    const response = await this.request<JiraSprintsResponse>(endpoint);
+    writeLogs(`jira-board-${boardId}-sprints.json`, response);
+    return response;
+  }
+
+  async createSprint(params: {
+    name: string;
+    originBoardId: number;
+    startDate?: string;
+    endDate?: string;
+    goal?: string;
+  }): Promise<JiraSprint> {
+    const endpoint = `/rest/agile/1.0/sprint`;
+    const payload = {
+      name: params.name,
+      originBoardId: params.originBoardId,
+      startDate: params.startDate,
+      endDate: params.endDate,
+      goal: params.goal,
+    };
+    const response = await this.request<JiraSprint>(endpoint, "POST", payload);
+    writeLogs(
+      `jira-sprint-create-${params.originBoardId}-${new Date().toISOString()}.json`,
+      response,
+    );
+    return response;
+  }
+
+  async getBoardBacklog(
+    boardId: number,
+    params?: {
+      jql?: string;
+      maxResults?: number;
+      startAt?: number;
+      fields?: string[];
+      expand?: string[];
+    },
+  ): Promise<JiraSearchResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.maxResults) {
+      queryParams.append("maxResults", String(params.maxResults));
+    }
+    if (params?.startAt) {
+      queryParams.append("startAt", String(params.startAt));
+    }
+    if (params?.jql) {
+      queryParams.append("jql", params.jql);
+    }
+    if (params?.fields) {
+      params.fields.forEach((field) => queryParams.append("fields", field));
+    }
+    if (params?.expand) {
+      params.expand.forEach((exp) => queryParams.append("expand", exp));
+    }
+
+    const endpoint = `/rest/agile/1.0/board/${boardId}/backlog?${queryParams.toString()}`;
+    const response = await this.request<JiraSearchResponse>(endpoint);
+    writeLogs(
+      `jira-board-${boardId}-backlog-${new Date().toISOString()}.json`,
+      response,
+    );
+    return response;
+  }
+
+  async moveIssuesToBoard(
+    boardId: number,
+    issues: string[],
+    rankAfterIssue?: string,
+    rankBeforeIssue?: string,
+  ): Promise<void> {
+    const endpoint = `/rest/agile/1.0/board/${boardId}/issue`;
+    const payload: {
+      issues: string[];
+      rankAfterIssue?: string;
+      rankBeforeIssue?: string;
+    } = { issues };
+    if (rankAfterIssue) {
+      payload.rankAfterIssue = rankAfterIssue;
+    }
+    if (rankBeforeIssue) {
+      payload.rankBeforeIssue = rankBeforeIssue;
+    }
+    await this.request<void>(endpoint, "POST", payload);
+    writeLogs(`jira-board-${boardId}-move-issues.json`, { issues, payload });
+  }
+
+  async getBoardConfiguration(
+    boardId: number,
+  ): Promise<JiraBoardConfiguration> {
+    const endpoint = `/rest/agile/1.0/board/${boardId}/configuration`;
+    const response = await this.request<JiraBoardConfiguration>(endpoint);
+    writeLogs(`jira-board-${boardId}-config.json`, response);
+    return response;
   }
 }
 

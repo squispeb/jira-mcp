@@ -51,6 +51,87 @@ export interface JiraIssue {
   };
 }
 
+export interface JiraBoardIssue {
+  id: string;
+  key: string;
+  self: string;
+  fields: {
+    summary: string;
+    description?: string;
+    status: {
+      name: string;
+      statusCategory: {
+        name: string;
+      };
+    };
+    issuetype: {
+      name: string;
+      iconUrl: string;
+    };
+    priority?: {
+      name: string;
+      iconUrl: string;
+    };
+    assignee?: {
+      displayName: string;
+      emailAddress: string;
+      accountId: string;
+    };
+    reporter?: {
+      displayName: string;
+      emailAddress: string;
+      accountId: string;
+    };
+    created: string;
+    updated: string;
+    project: {
+      key: string;
+      name: string;
+    };
+    labels?: string[];
+    components?: Array<{
+      name: string;
+    }>;
+    fixVersions?: Array<{
+      name: string;
+    }>;
+    duedate?: string;
+    flagged?: boolean;
+    sprint?: {
+      id: number;
+      self: string;
+      state: "future" | "active" | "closed";
+      name: string;
+      startDate?: string;
+      endDate?: string;
+      completeDate?: string;
+      originBoardId: number;
+      goal?: string;
+    };
+    closedSprints?: Array<{
+      id: number;
+      self: string;
+      state: "future" | "active" | "closed";
+      name: string;
+      startDate?: string;
+      endDate?: string;
+      completeDate?: string;
+      originBoardId: number;
+      goal?: string;
+    }>;
+    epic?: {
+      id: number;
+      self: string;
+      name: string;
+      summary: string;
+      color: {
+        key: string;
+      };
+      done: boolean;
+    };
+  };
+}
+
 export interface JiraADFTextNode {
   type: "text";
   text: string;
@@ -178,5 +259,100 @@ export interface JiraIssueLinkRequest {
   };
   comment?: {
     body: JiraADFDocument;
+  };
+}
+
+export interface JiraBoard {
+  id: number;
+  self: string;
+  name: string;
+  type: "scrum" | "kanban";
+  location?: {
+    type: "project" | "user";
+    projectId?: number;
+    projectKey?: string;
+    projectName?: string;
+    userAccountId?: string;
+  };
+}
+
+export interface JiraBoardsResponse {
+  isLast?: boolean;
+  maxResults: number;
+  startAt: number;
+  total: number;
+  values: JiraBoard[];
+}
+
+export interface JiraBoardLocation {
+  type: "project" | "user";
+  projectId?: number;
+  projectKey?: string;
+  projectName?: string;
+  userAccountId?: string;
+}
+
+export interface JiraBoardDetails {
+  id: number;
+  self: string;
+  name: string;
+  type: "scrum" | "kanban";
+  location: JiraBoardLocation;
+}
+
+export interface JiraSprint {
+  id: number;
+  self: string;
+  state: "future" | "active" | "closed";
+  name: string;
+  startDate?: string;
+  endDate?: string;
+  completeDate?: string;
+  originBoardId: number;
+  goal?: string;
+}
+
+export interface JiraSprintsResponse {
+  isLast?: boolean;
+  maxResults: number;
+  startAt: number;
+  total: number;
+  values: JiraSprint[];
+}
+
+export interface JiraBoardFilter {
+  id: number;
+  self: string;
+}
+
+export interface JiraBoardColumn {
+  name: string;
+  statuses: Array<{
+    id: string;
+    self: string;
+  }>;
+  min?: number;
+  max?: number;
+}
+
+export interface JiraBoardConfiguration {
+  id: number;
+  self: string;
+  name: string;
+  filter: JiraBoardFilter;
+  location: JiraBoardLocation;
+  columnConfig: {
+    columns: JiraBoardColumn[];
+    constraintType: "none" | "issueCount" | "issueCountExclSubs";
+  };
+  estimation?: {
+    type: "none" | "issueCount" | "field";
+    field?: {
+      fieldId: string;
+      displayName: string;
+    };
+  };
+  ranking?: {
+    rankCustomFieldId: number;
   };
 }

@@ -5,6 +5,12 @@ import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 import express, { Request, Response } from "express";
 import { SSEServerTransport } from "@modelcontextprotocol/sdk/server/sse.js";
 import { IncomingMessage, ServerResponse } from "http";
+import {
+  JiraBoard,
+  JiraBoardConfiguration,
+  JiraBoardsResponse,
+  JiraSprintsResponse,
+} from "./types/jira";
 
 export class JiraMcpServer {
   private readonly server: McpServer;
@@ -681,6 +687,309 @@ export class JiraMcpServer {
                 type: "text",
                 text: `Error linking issues: ${error}`,
               },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "get_boards",
+      "Get all boards accessible to the current user",
+      {
+        maxResults: z
+          .number()
+          .optional()
+          .describe("Maximum number of boards to return (default: 50)"),
+        startAt: z
+          .number()
+          .optional()
+          .describe("Starting index for pagination (default: 0)"),
+        projectKeyOrId: z
+          .string()
+          .optional()
+          .describe("Filter boards by project key or ID"),
+        boardType: z
+          .enum(["scrum", "kanban"])
+          .optional()
+          .describe("Filter boards by type"),
+      },
+      async ({ maxResults, startAt, projectKeyOrId, boardType }) => {
+        try {
+          console.log("Fetching boards");
+          const response = await this.jiraService.getAllBoards(
+            maxResults,
+            startAt,
+            projectKeyOrId,
+            boardType,
+          );
+          console.log(`Successfully fetched ${response.values.length} boards`);
+          return {
+            content: [
+              { type: "text", text: JSON.stringify(response, null, 2) },
+            ],
+          };
+        } catch (error) {
+          console.error("Error fetching boards:", error);
+          return {
+            content: [
+              { type: "text", text: `Error fetching boards: ${error}` },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "get_board_issues",
+      "Get all issues from a specific board",
+      {
+        boardId: z.number().describe("The ID of the Jira board"),
+        jql: z
+          .string()
+          .optional()
+          .describe("Optional JQL query to filter issues"),
+        maxResults: z
+          .number()
+          .optional()
+          .describe("Maximum number of issues to return (default: 50)"),
+        startAt: z
+          .number()
+          .optional()
+          .describe("Starting index for pagination (default: 0)"),
+      },
+      async ({ boardId, jql, maxResults, startAt }) => {
+        try {
+          console.log(`Fetching issues for board ${boardId}`);
+          const response = await this.jiraService.getBoardIssues(boardId, {
+            jql,
+            maxResults,
+            startAt,
+          });
+          console.log(
+            `Successfully fetched ${response.issues.length} issues from board ${boardId}`,
+          );
+          return {
+            content: [
+              { type: "text", text: JSON.stringify(response, null, 2) },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error fetching board issues for ${boardId}:`, error);
+          return {
+            content: [
+              { type: "text", text: `Error fetching board issues: ${error}` },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "get_board_sprints",
+      "Get all sprints from a specific board",
+      {
+        boardId: z.number().describe("The ID of the Jira board"),
+        state: z
+          .enum(["future", "active", "closed"])
+          .optional()
+          .describe("Filter sprints by state (future, active, or closed)"),
+        maxResults: z
+          .number()
+          .optional()
+          .describe("Maximum number of sprints to return (default: 50)"),
+        startAt: z
+          .number()
+          .optional()
+          .describe("Starting index for pagination (default: 0)"),
+      },
+      async ({ boardId, state, maxResults, startAt }) => {
+        try {
+          console.log(`Fetching sprints for board ${boardId}`);
+          const response = await this.jiraService.getBoardSprints(
+            boardId,
+            state,
+            maxResults,
+            startAt,
+          );
+          console.log(
+            `Successfully fetched ${response.values.length} sprints from board ${boardId}`,
+          );
+          return {
+            content: [
+              { type: "text", text: JSON.stringify(response, null, 2) },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error fetching board sprints for ${boardId}:`, error);
+          return {
+            content: [
+              { type: "text", text: `Error fetching board sprints: ${error}` },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "move_issues_to_board",
+      "Move issues from backlog to a board or rank them on the board",
+      {
+        boardId: z.number().describe("The ID of the Jira board"),
+        issues: z
+          .array(z.string())
+          .describe('Array of issue keys to move (e.g., ["PROJ-1", "PROJ-2"])'),
+        rankAfterIssue: z
+          .string()
+          .optional()
+          .describe("Position issues after this issue key"),
+        rankBeforeIssue: z
+          .string()
+          .optional()
+          .describe("Position issues before this issue key"),
+      },
+      async ({ boardId, issues, rankAfterIssue, rankBeforeIssue }) => {
+        try {
+          console.log(`Moving ${issues.length} issues to board ${boardId}`);
+          await this.jiraService.moveIssuesToBoard(
+            boardId,
+            issues,
+            rankAfterIssue,
+            rankBeforeIssue,
+          );
+          console.log(
+            `Successfully moved ${issues.length} issues to board ${boardId}`,
+          );
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Successfully moved ${issues.length} issues to board ${boardId}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error moving issues to board ${boardId}:`, error);
+          return {
+            content: [
+              { type: "text", text: `Error moving issues to board: ${error}` },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "get_board_details",
+      "Get detailed configuration and metadata for a specific board",
+      {
+        boardId: z.number().describe("The ID of the Jira board"),
+      },
+      async ({ boardId }) => {
+        try {
+          console.log(`Fetching details for board ${boardId}`);
+          const config = await this.jiraService.getBoardConfiguration(boardId);
+          const board = await this.jiraService.getBoard(boardId);
+          const result = {
+            board,
+            configuration: config,
+          };
+          console.log(`Successfully fetched details for board ${boardId}`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(result, null, 2) }],
+          };
+        } catch (error) {
+          console.error(`Error fetching board details for ${boardId}:`, error);
+          return {
+            content: [
+              { type: "text", text: `Error fetching board details: ${error}` },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "get_board_backlog",
+      "Get issues from a board's backlog (issues not assigned to any active or future sprint)",
+      {
+        boardId: z.number().describe("The ID of the Jira board"),
+        jql: z
+          .string()
+          .optional()
+          .describe("Optional JQL query to filter backlog issues"),
+        maxResults: z
+          .number()
+          .optional()
+          .describe("Maximum number of issues to return (default: 50)"),
+        startAt: z
+          .number()
+          .optional()
+          .describe("Starting index for pagination (default: 0)"),
+      },
+      async ({ boardId, jql, maxResults, startAt }) => {
+        try {
+          console.log(`Fetching backlog for board ${boardId}`);
+          const response = await this.jiraService.getBoardBacklog(boardId, {
+            jql,
+            maxResults,
+            startAt,
+          });
+          console.log(
+            `Successfully fetched ${response.issues.length} backlog issues from board ${boardId}`,
+          );
+          return {
+            content: [
+              { type: "text", text: JSON.stringify(response, null, 2) },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error fetching board backlog for ${boardId}:`, error);
+          return {
+            content: [
+              { type: "text", text: `Error fetching board backlog: ${error}` },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "create_sprint",
+      "Create a new sprint for a board",
+      {
+        name: z.string().min(1).describe("Sprint name"),
+        originBoardId: z
+          .number()
+          .describe("Board ID where the sprint will be created"),
+        startDate: z
+          .string()
+          .optional()
+          .describe("Sprint start date (ISO 8601)"),
+        endDate: z.string().optional().describe("Sprint end date (ISO 8601)"),
+        goal: z.string().optional().describe("Optional sprint goal"),
+      },
+      async ({ name, originBoardId, startDate, endDate, goal }) => {
+        try {
+          console.log(`Creating sprint ${name} on board ${originBoardId}`);
+          const response = await this.jiraService.createSprint({
+            name,
+            originBoardId,
+            startDate,
+            endDate,
+            goal,
+          });
+          console.log(`Successfully created sprint ${response.name}`);
+          return {
+            content: [
+              { type: "text", text: JSON.stringify(response, null, 2) },
+            ],
+          };
+        } catch (error) {
+          console.error("Error creating sprint:", error);
+          return {
+            content: [
+              { type: "text", text: `Error creating sprint: ${error}` },
             ],
           };
         }
