@@ -736,6 +736,32 @@ export class JiraMcpServer {
     );
 
     this.server.tool(
+      "get_sprint",
+      "Get details for a specific sprint",
+      {
+        sprintId: z.number().describe("Sprint ID to fetch"),
+      },
+      async ({ sprintId }) => {
+        try {
+          console.log(`Fetching sprint ${sprintId}`);
+          const response = await this.jiraService.getSprint(sprintId);
+          return {
+            content: [
+              { type: "text", text: JSON.stringify(response, null, 2) },
+            ],
+          };
+        } catch (error) {
+          console.error("Error fetching sprint:", error);
+          return {
+            content: [
+              { type: "text", text: `Error fetching sprint: ${error}` },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
       "add_issues_to_sprint",
       "Add issues to a sprint",
       {
