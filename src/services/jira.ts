@@ -3,7 +3,6 @@ import {
   JiraADFDocument,
   JiraBoard,
   JiraBoardConfiguration,
-  JiraBoardIssue,
   JiraBoardsResponse,
   JiraComment,
   JiraCreateIssueResponse,
@@ -63,8 +62,8 @@ export class JiraService {
         throw {
           status: error.response.status,
           err:
-            (error.response.data as { errorMessages?: string[] })
-              ?.errorMessages?.[0] || "Unknown error",
+            (error.response.data as { errorMessages?: string[] })?.errorMessages?.[0] ||
+            "Unknown error",
         } as JiraError;
       }
       throw new Error(
@@ -122,11 +121,7 @@ export class JiraService {
    */
   async searchIssues(params: JiraSearchParams): Promise<JiraSearchResponse> {
     const endpoint = `/rest/api/3/search/jql`;
-    const response = await this.request<JiraSearchResponse>(
-      endpoint,
-      "POST",
-      params,
-    );
+    const response = await this.request<JiraSearchResponse>(endpoint, "POST", params);
     writeLogs(`jira-search-${new Date().toISOString()}.json`, response);
     return response;
   }
@@ -152,15 +147,7 @@ export class JiraService {
     return this.searchIssues({
       jql,
       maxResults,
-      fields: [
-        "summary",
-        "description",
-        "status",
-        "issuetype",
-        "priority",
-        "assignee",
-        "project",
-      ],
+      fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "project"],
     });
   }
 
@@ -179,25 +166,14 @@ export class JiraService {
     return this.searchIssues({
       jql,
       maxResults,
-      fields: [
-        "summary",
-        "description",
-        "status",
-        "issuetype",
-        "priority",
-        "assignee",
-        "project",
-      ],
+      fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "project"],
     });
   }
 
   /**
    * Get epics from a project
    */
-  async getEpics(
-    projectKey?: string,
-    maxResults: number = 50,
-  ): Promise<JiraSearchResponse> {
+  async getEpics(projectKey?: string, maxResults: number = 50): Promise<JiraSearchResponse> {
     const jql = projectKey
       ? `project = ${projectKey} AND issuetype = Epic ORDER BY updated DESC`
       : `issuetype = Epic ORDER BY updated DESC`;
@@ -205,25 +181,14 @@ export class JiraService {
     return this.searchIssues({
       jql,
       maxResults,
-      fields: [
-        "summary",
-        "description",
-        "status",
-        "issuetype",
-        "priority",
-        "assignee",
-        "project",
-      ],
+      fields: ["summary", "description", "status", "issuetype", "priority", "assignee", "project"],
     });
   }
 
   /**
    * Get child issues of an epic
    */
-  async getEpicChildren(
-    epicKey: string,
-    maxResults: number = 50,
-  ): Promise<JiraSearchResponse> {
+  async getEpicChildren(epicKey: string, maxResults: number = 50): Promise<JiraSearchResponse> {
     const jql = `parent = ${epicKey} ORDER BY updated DESC`;
 
     return this.searchIssues({
@@ -245,9 +210,7 @@ export class JiraService {
   /**
    * Get possible transitions for an issue
    */
-  async getIssueTransitions(
-    issueKey: string,
-  ): Promise<JiraTransitionsResponse> {
+  async getIssueTransitions(issueKey: string): Promise<JiraTransitionsResponse> {
     const endpoint = `/rest/api/3/issue/${issueKey}/transitions`;
     return this.request<JiraTransitionsResponse>(endpoint);
   }
@@ -307,11 +270,7 @@ export class JiraService {
       payload.fields.description = this.createTextADF(description);
     }
 
-    const response = await this.request<JiraCreateIssueResponse>(
-      endpoint,
-      "POST",
-      payload,
-    );
+    const response = await this.request<JiraCreateIssueResponse>(endpoint, "POST", payload);
     writeLogs(`jira-create-epic-${response.key}.json`, response);
     return response;
   }
@@ -346,11 +305,7 @@ export class JiraService {
       payload.fields.description = this.createTextADF(description);
     }
 
-    const response = await this.request<JiraCreateIssueResponse>(
-      endpoint,
-      "POST",
-      payload,
-    );
+    const response = await this.request<JiraCreateIssueResponse>(endpoint, "POST", payload);
     writeLogs(`jira-create-issue-${response.key}.json`, response);
     return response;
   }
@@ -372,10 +327,7 @@ export class JiraService {
   /**
    * Update the description of an issue
    */
-  async updateIssueDescription(
-    issueKey: string,
-    description: string,
-  ): Promise<void> {
+  async updateIssueDescription(issueKey: string, description: string): Promise<void> {
     const content = description.trim();
     if (!content) {
       throw new Error("Description text cannot be empty");
@@ -485,10 +437,7 @@ export class JiraService {
 
     const endpoint = `/rest/agile/1.0/board/${boardId}/issue?${queryParams.toString()}`;
     const response = await this.request<JiraSearchResponse>(endpoint);
-    writeLogs(
-      `jira-board-${boardId}-issues-${new Date().toISOString()}.json`,
-      response,
-    );
+    writeLogs(`jira-board-${boardId}-issues-${new Date().toISOString()}.json`, response);
     return response;
   }
 
@@ -568,10 +517,7 @@ export class JiraService {
   ): Promise<JiraSprint> {
     const endpoint = `/rest/agile/1.0/sprint/${sprintId}`;
     const response = await this.request<JiraSprint>(endpoint, "PUT", params);
-    writeLogs(
-      `jira-sprint-${sprintId}-update-${new Date().toISOString()}.json`,
-      response,
-    );
+    writeLogs(`jira-sprint-${sprintId}-update-${new Date().toISOString()}.json`, response);
     return response;
   }
 
@@ -605,10 +551,7 @@ export class JiraService {
 
     const endpoint = `/rest/agile/1.0/board/${boardId}/sprint/${sprintId}/issue?${queryParams.toString()}`;
     const response = await this.request<JiraSearchResponse>(endpoint);
-    writeLogs(
-      `jira-sprint-${sprintId}-issues-${new Date().toISOString()}.json`,
-      response,
-    );
+    writeLogs(`jira-sprint-${sprintId}-issues-${new Date().toISOString()}.json`, response);
     return response;
   }
 
@@ -641,10 +584,7 @@ export class JiraService {
 
     const endpoint = `/rest/agile/1.0/board/${boardId}/backlog?${queryParams.toString()}`;
     const response = await this.request<JiraSearchResponse>(endpoint);
-    writeLogs(
-      `jira-board-${boardId}-backlog-${new Date().toISOString()}.json`,
-      response,
-    );
+    writeLogs(`jira-board-${boardId}-backlog-${new Date().toISOString()}.json`, response);
     return response;
   }
 
@@ -670,9 +610,7 @@ export class JiraService {
     writeLogs(`jira-board-${boardId}-move-issues.json`, { issues, payload });
   }
 
-  async getBoardConfiguration(
-    boardId: number,
-  ): Promise<JiraBoardConfiguration> {
+  async getBoardConfiguration(boardId: number): Promise<JiraBoardConfiguration> {
     const endpoint = `/rest/agile/1.0/board/${boardId}/configuration`;
     const response = await this.request<JiraBoardConfiguration>(endpoint);
     writeLogs(`jira-board-${boardId}-config.json`, response);

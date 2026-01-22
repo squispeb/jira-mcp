@@ -3,7 +3,7 @@
  * Example URLs:
  * - https://your-domain.atlassian.net/browse/PROJECT-123
  * - https://your-domain.atlassian.net/jira/software/projects/PROJECT/issues/PROJECT-123
- * 
+ *
  * @param url The Jira issue URL
  * @returns The extracted issue key or null if not found
  */
@@ -37,7 +37,7 @@ export function extractIssueKeyFromUrl(url: string): string | null {
  * Example URLs:
  * - https://your-domain.atlassian.net/browse/PROJECT-123
  * - https://your-domain.atlassian.net/jira/software/projects/PROJECT/issues
- * 
+ *
  * @param url The Jira URL
  * @returns The extracted project key or null if not found
  */
@@ -52,11 +52,11 @@ export function extractProjectKeyFromUrl(url: string): string | null {
   // Try to extract from an issue key if present
   const issueKey = extractIssueKeyFromUrl(url);
   if (issueKey) {
-    const parts = issueKey.split('-');
+    const parts = issueKey.split("-");
     if (parts.length > 0) {
       return parts[0];
     }
   }
 
   return null;
-} 
+}

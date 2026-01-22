@@ -1,0 +1,27 @@
+{
+  "$schema": "https://raw.githubusercontent.com/oxc-project/oxc/main/npm/oxlint/configuration_schema.json",
+  "categories": {
+    "correctness": "enable",
+    "pedantic": "enable",
+    "style": "enable",
+    "suspicious": "enable",
+    "perf": "enable",
+    "restriction": "warn"
+  },
+  "rules": {
+    "no-unused-vars": "error",
+    "no-console": "off",
+    "@typescript-eslint/no-explicit-any": "off",
+    "@typescript-eslint/explicit-module-boundary-types": "off"
+  },
+  "env": {
+    "node": true,
+    "es2022": true
+  },
+  "plugins": ["@typescript-eslint"],
+  "settings": {
+    "typescript": {
+      "tsconfigPath": "./tsconfig.json"
+    }
+  }
+}
