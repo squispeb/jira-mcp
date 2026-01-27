@@ -3,6 +3,17 @@ export interface JiraError {
   err: string;
 }
 
+export interface JiraUser {
+  accountId: string;
+  accountType: string;
+  displayName: string;
+  emailAddress: string;
+  active: boolean;
+  self: string;
+}
+
+export interface JiraUserSearchResponse extends Array<JiraUser> {}
+
 export interface JiraIssue {
   id: string;
   key: string;

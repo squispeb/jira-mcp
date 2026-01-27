@@ -17,6 +17,7 @@ import {
   JiraSprint,
   JiraSprintsResponse,
   JiraTransitionsResponse,
+  JiraUserSearchResponse,
 } from "~/types/jira";
 import fs from "fs";
 
@@ -338,6 +339,65 @@ export class JiraService {
         description: this.createTextADF(content),
       },
     });
+  }
+
+  /**
+   * Assign an issue to a user
+   * @param issueKey The issue key (e.g., "PROJECT-123")
+   * @param assignee The user account ID, email, or username to assign the issue to
+   */
+  async assignIssue(issueKey: string, assignee: string): Promise<void> {
+    const endpoint = `/rest/api/3/issue/${issueKey}`;
+
+    // Try to find the user first to get their account ID
+    try {
+      const users = await this.searchUsers(assignee);
+      const user = users.find(
+        (u) =>
+          u.accountId === assignee || u.emailAddress === assignee || u.displayName === assignee,
+      );
+
+      if (user) {
+        await this.request<void>(endpoint, "PUT", {
+          fields: {
+            assignee: {
+              accountId: user.accountId,
+            },
+          },
+        });
+      } else {
+        // If user not found, try directly with the provided value (might be account ID)
+        await this.request<void>(endpoint, "PUT", {
+          fields: {
+            assignee: {
+              accountId: assignee,
+            },
+          },
+        });
+      }
+    } catch {
+      // If search fails, try direct assignment
+      await this.request<void>(endpoint, "PUT", {
+        fields: {
+          assignee: {
+            accountId: assignee,
+          },
+        },
+      });
+    }
+  }
+
+  /**
+   * Search for users in the workspace
+   * @param query Search query for user name or email
+   * @returns Array of users matching the query
+   */
+  async searchUsers(query: string): Promise<JiraUserSearchResponse> {
+    const endpoint = `/rest/api/3/user/search`;
+    const queryParams = new URLSearchParams();
+    queryParams.append("query", query);
+    const fullUrl = `${endpoint}?${queryParams.toString()}`;
+    return this.request<JiraUserSearchResponse>(fullUrl);
   }
 
   /**

@@ -94,15 +94,19 @@ export class JiraMcpServer {
             ],
           };
         } catch (error) {
-          console.error(`Error transitioning issue ${issueKey}:`, error);
+          console.error("Error transitioning issue:", error);
           return {
-            content: [{ type: "text", text: `Error transitioning issue: ${error}` }],
+            content: [
+              {
+                type: "text",
+                text: `Error transitioning issue: ${error}`,
+              },
+            ],
           };
         }
       },
     );
 
-    // Tool to list available transitions for an issue
     this.server.tool(
       "get_issue_transitions",
       "List available workflow transitions for an issue",
@@ -451,6 +455,80 @@ export class JiraMcpServer {
               {
                 type: "text",
                 text: `Error updating description: ${error}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Tool to assign an issue to a user
+    this.server.tool(
+      "assign_issue",
+      "Assign a Jira issue to a workspace member",
+      {
+        issueKey: z.string().describe("The key of the issue to assign (e.g., PROJ-123)"),
+        assignee: z
+          .string()
+          .describe("The user to assign the issue to (email, name, or account ID)"),
+      },
+      async ({ issueKey, assignee }) => {
+        try {
+          console.log(`Assigning issue ${issueKey} to ${assignee}`);
+          await this.jiraService.assignIssue(issueKey, assignee);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Issue ${issueKey} assigned to ${assignee} successfully`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error("Error assigning issue:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error assigning issue: ${error}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // Tool to search for workspace users
+    this.server.tool(
+      "search_users",
+      "Search for users in the Jira workspace",
+      {
+        query: z.string().describe("Search query for user name or email"),
+      },
+      async ({ query }) => {
+        try {
+          console.log(`Searching for users with query: ${query}`);
+          const users = await this.jiraService.searchUsers(query);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Found ${users.length} users:\n${users
+                  .map(
+                    (user) =>
+                      `- ${user.displayName} (${user.emailAddress}) - Account ID: ${user.accountId} - Active: ${user.active}`,
+                  )
+                  .join("\n")}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error("Error searching users:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error searching users: ${error}`,
               },
             ],
           };
