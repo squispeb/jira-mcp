@@ -52,10 +52,21 @@ A Model Context Protocol (MCP) implementation for Jira that allows you to:
    cp .env.example .env
    ```
 
-4. Edit the `.env` file with your server auth token:
+4. Edit the `.env` file with your server auth token (OAuth is optional):
+
    ```
    MCP_AUTH_TOKEN=change-me
    HTTP_PORT=3000
+   ```
+
+   Optional Atlassian OAuth (for sign-in without Jira API tokens):
+
+   ```
+   ATLASSIAN_CLIENT_ID=
+   ATLASSIAN_CLIENT_SECRET=
+   ATLASSIAN_REDIRECT_URI=http://localhost:3000/auth/callback
+   ATLASSIAN_SCOPES=read:jira-user read:jira-work write:jira-work read:board-scope:jira-software read:sprint:jira-software write:sprint:jira-software offline_access
+   JIRA_OAUTH_STORE_PATH=./data/jira-oauth.json
    ```
 
 ### Build
@@ -81,6 +92,7 @@ pnpm start
 ```
 
 Note: In HTTP mode, Jira credentials are provided by each client via headers. The server does not read `JIRA_*` from `.env`.
+If Atlassian OAuth is configured, you can sign in and avoid providing Jira API tokens in the MCP config.
 
 Or use the CLI mode:
 
@@ -98,16 +110,29 @@ CLI mode expects `JIRA_BASE_URL`, `JIRA_USERNAME`, and `JIRA_API_TOKEN` to be pr
 2. Type **"Connect to MCP Server"**
 3. Select **"Connect to MCP Server"**
 4. Enter the server URL (default: `http://localhost:3000/sse`)
-5. Configure these headers in your MCP client (required for HTTP mode):
+5. Choose one of the connection modes:
+
+OAuth sign-in (recommended)
+
+1. Open `http://localhost:3000/auth/start?token=<MCP_AUTH_TOKEN>` in a browser.
+2. Sign in to Atlassian and select a Jira workspace.
+3. In your MCP client, send only:
+   ```
+   Authorization: Bearer <MCP_AUTH_TOKEN>
+   ```
+   Optional: set `X-Jira-Cloud-Id` to select a specific workspace per connection.
+
+Direct Jira credentials (no OAuth)
+
+1. Configure these headers in your MCP client:
    ```
    Authorization: Bearer <MCP_AUTH_TOKEN>
    X-Jira-Base-Url: https://your-domain.atlassian.net
    X-Jira-Username: your-email@example.com
    X-Jira-Api-Token: your-api-token-here
    ```
-
-If your MCP client cannot send headers, you can pass the Jira parameters as query parameters on `/sse` (less secure):
-`http://localhost:3000/sse?jiraBaseUrl=...&jiraUsername=...&jiraApiToken=...`
+2. If your MCP client cannot send headers, you can pass the Jira parameters as query parameters on `/sse` (less secure):
+   `http://localhost:3000/sse?jiraBaseUrl=...&jiraUsername=...&jiraApiToken=...`
 
 ## Available Tools
 

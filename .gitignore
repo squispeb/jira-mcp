@@ -24,6 +24,9 @@ yarn-error.log*
 .env.test.local
 .env.production.local
 
+# Local auth data
+data/
+
 # IDE and editors
 .idea/
 .vscode/
