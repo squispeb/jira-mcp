@@ -9,11 +9,11 @@ export function AuthLayout() {
       </header>
 
       <nav className="tabs" aria-label="Auth navigation">
-        <NavLink to="/register" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
-          Register
+        <NavLink to="/sign-up" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
+          Sign Up
         </NavLink>
-        <NavLink to="/login" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
-          Login
+        <NavLink to="/token" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
+          Token
         </NavLink>
         <NavLink to="/mcp-test" className={({ isActive }) => (isActive ? "tab active" : "tab")}>
           MCP Test

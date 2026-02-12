@@ -10,7 +10,11 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
-        "/auth": {
+        "/auth/register": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/auth/login": {
           target: proxyTarget,
           changeOrigin: true,
         },

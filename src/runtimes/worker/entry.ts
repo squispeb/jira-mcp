@@ -10,11 +10,16 @@ type DurableObjectNamespaceLike = {
   };
 };
 
+type AssetsBindingLike = {
+  fetch(request: Request): Promise<Response>;
+};
+
 type WorkerEnv = {
   MCP_AUTH_TOKEN?: string;
   MCP_AUTH_TOKENS?: string;
   AUTH_DB?: D1DatabaseLike;
   AUTH_UI_URL?: string;
+  AUTH_UI_ASSETS?: AssetsBindingLike;
   JIRA_MCP_SESSIONS: DurableObjectNamespaceLike;
 };
 
@@ -32,19 +37,11 @@ export default {
       return authResponse;
     }
 
-    if (request.method === "GET" && url.pathname === "/auth") {
-      const authUiUrl = env.AUTH_UI_URL?.trim();
-      if (authUiUrl) {
-        return Response.redirect(authUiUrl, 302);
+    if (request.method === "GET") {
+      const uiResponse = await maybeServeAuthUi(request, env);
+      if (uiResponse) {
+        return uiResponse;
       }
-
-      return Response.json(
-        {
-          message: "Auth UI is served by the Vite app.",
-          hint: "Run npm --prefix auth-ui run dev and open http://localhost:5173",
-        },
-        { status: 200 },
-      );
     }
 
     if (url.pathname === "/health") {
@@ -76,6 +73,50 @@ export default {
 };
 
 export { JiraMcpSessionDurableObject };
+
+async function maybeServeAuthUi(request: Request, env: WorkerEnv): Promise<Response | null> {
+  const url = new URL(request.url);
+  const pathname = url.pathname;
+  const isAuthUiPage = pathname === "/auth" || pathname.startsWith("/auth/");
+  const isAuthUiAsset = pathname.startsWith("/assets/") || pathname === "/favicon.ico";
+
+  if (!isAuthUiPage && !isAuthUiAsset) {
+    return null;
+  }
+
+  const assets = env.AUTH_UI_ASSETS;
+  if (assets) {
+    if (isAuthUiAsset) {
+      const assetResponse = await assets.fetch(request);
+      if (assetResponse.status !== 404) {
+        return assetResponse;
+      }
+    }
+
+    if (isAuthUiPage) {
+      const indexUrl = new URL(request.url);
+      indexUrl.pathname = "/";
+      return assets.fetch(new Request(indexUrl.toString(), request));
+    }
+  }
+
+  if (isAuthUiPage) {
+    const authUiUrl = env.AUTH_UI_URL?.trim();
+    if (authUiUrl) {
+      return Response.redirect(authUiUrl, 302);
+    }
+
+    return Response.json(
+      {
+        message: "Auth UI assets are not deployed.",
+        hint: "Run bun run build:auth-ui before deploying the Worker.",
+      },
+      { status: 200 },
+    );
+  }
+
+  return null;
+}
 
 async function authorizeRequest(
   request: Request,

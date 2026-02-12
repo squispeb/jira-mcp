@@ -4,6 +4,11 @@ compatibility_date = "2025-08-13"
 workers_dev = true
 preview_urls = true
 
+[assets]
+directory = "./auth-ui/dist"
+binding = "AUTH_UI_ASSETS"
+run_worker_first = true
+
 [observability]
 enabled = false
 head_sampling_rate = 1
@@ -41,6 +46,11 @@ name = "jira-context-mcp-preview"
 workers_dev = true
 preview_urls = true
 routes = []
+
+[env.preview.assets]
+directory = "./auth-ui/dist"
+binding = "AUTH_UI_ASSETS"
+run_worker_first = true
 
 [[env.preview.durable_objects.bindings]]
 name = "JIRA_MCP_SESSIONS"

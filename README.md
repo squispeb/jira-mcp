@@ -169,21 +169,38 @@ If you prefer a browser flow instead of curl, open the auth console UI:
 - Run the React app:
 
   ```bash
-  npm --prefix auth-ui install
-  npm run dev:auth-ui
+  bun --cwd auth-ui install
+  bun run dev:auth-ui
   ```
 
-- Open: `http://localhost:5173`
+- Open: `http://localhost:5173/auth`
 
-The Vite app uses React Router and proxies `/auth`, `/mcp`, and `/health` to your Worker runtime.
+The Vite app uses React Router and proxies `/auth/register`, `/auth/login`, `/mcp`, and `/health` to your Worker runtime.
 
 Proxy target defaults to `http://localhost:8787` and can be changed with:
 
 ```bash
-VITE_PROXY_TARGET=https://jira-context-mcp-preview.contacto-80f.workers.dev npm run dev:auth-ui
+VITE_PROXY_TARGET=https://jira-context-mcp-preview.contacto-80f.workers.dev bun run dev:auth-ui
 ```
 
 The auth console lets you register, login, copy user tokens, and run a quick MCP initialize/tools test.
+
+To publish the UI inside the Worker, build and deploy with assets:
+
+```bash
+bun run deploy:worker:with-ui
+```
+
+Preview deploy with UI assets:
+
+```bash
+bun run deploy:worker:preview:with-ui
+```
+
+Published UI path:
+
+- Preview: `https://jira-context-mcp-preview.contacto-80f.workers.dev/auth`
+- Production: `https://jira-mcp-server.creax-ai.com/auth`
 
 ### Connecting with Cursor
 

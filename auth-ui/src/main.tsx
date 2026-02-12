@@ -7,30 +7,35 @@ import { RegisterPage } from "./ui/register-page";
 import { McpTestPage } from "./ui/mcp-test-page";
 import "./styles.css";
 
-const router = createBrowserRouter([
+const router = createBrowserRouter(
+  [
+    {
+      path: "/",
+      element: <AuthLayout />,
+      children: [
+        {
+          index: true,
+          element: <Navigate to="/sign-up" replace />,
+        },
+        {
+          path: "sign-up",
+          element: <RegisterPage />,
+        },
+        {
+          path: "token",
+          element: <LoginPage />,
+        },
+        {
+          path: "mcp-test",
+          element: <McpTestPage />,
+        },
+      ],
+    },
+  ],
   {
-    path: "/",
-    element: <AuthLayout />,
-    children: [
-      {
-        index: true,
-        element: <Navigate to="/register" replace />,
-      },
-      {
-        path: "register",
-        element: <RegisterPage />,
-      },
-      {
-        path: "login",
-        element: <LoginPage />,
-      },
-      {
-        path: "mcp-test",
-        element: <McpTestPage />,
-      },
-    ],
+    basename: "/auth",
   },
-]);
+);
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
