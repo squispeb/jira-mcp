@@ -164,6 +164,27 @@ The Worker runtime now supports user-based API tokens using D1.
 
 `/auth/login` returns a per-user bearer token (`mcp_...`) that can be used for MCP requests.
 
+If you prefer a browser flow instead of curl, open the auth console UI:
+
+- Run the React app:
+
+  ```bash
+  npm --prefix auth-ui install
+  npm run dev:auth-ui
+  ```
+
+- Open: `http://localhost:5173`
+
+The Vite app uses React Router and proxies `/auth`, `/mcp`, and `/health` to your Worker runtime.
+
+Proxy target defaults to `http://localhost:8787` and can be changed with:
+
+```bash
+VITE_PROXY_TARGET=https://jira-context-mcp-preview.contacto-80f.workers.dev npm run dev:auth-ui
+```
+
+The auth console lets you register, login, copy user tokens, and run a quick MCP initialize/tools test.
+
 ### Connecting with Cursor
 
 1. In Cursor, open the Command Palette (Ctrl+Shift+P or Cmd+Shift+P)

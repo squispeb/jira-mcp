@@ -14,6 +14,7 @@ type WorkerEnv = {
   MCP_AUTH_TOKEN?: string;
   MCP_AUTH_TOKENS?: string;
   AUTH_DB?: D1DatabaseLike;
+  AUTH_UI_URL?: string;
   JIRA_MCP_SESSIONS: DurableObjectNamespaceLike;
 };
 
@@ -29,6 +30,21 @@ export default {
     const authResponse = await authService.handleAuthRequest(request);
     if (authResponse) {
       return authResponse;
+    }
+
+    if (request.method === "GET" && url.pathname === "/auth") {
+      const authUiUrl = env.AUTH_UI_URL?.trim();
+      if (authUiUrl) {
+        return Response.redirect(authUiUrl, 302);
+      }
+
+      return Response.json(
+        {
+          message: "Auth UI is served by the Vite app.",
+          hint: "Run npm --prefix auth-ui run dev and open http://localhost:5173",
+        },
+        { status: 200 },
+      );
     }
 
     if (url.pathname === "/health") {

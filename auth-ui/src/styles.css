@@ -1,0 +1,163 @@
+:root {
+  color-scheme: light;
+  font-family: "Avenir Next", "Segoe UI", system-ui, sans-serif;
+  line-height: 1.4;
+  font-weight: 400;
+  --text: #10243f;
+  --muted: #4a637f;
+  --bg-a: #f5f9ff;
+  --bg-b: #e9f4ff;
+  --surface: #ffffff;
+  --border: #cfe0f5;
+  --accent: #0f6fd8;
+  --accent-2: #198bbf;
+  --ok: #148652;
+  --err: #c13d31;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+body {
+  margin: 0;
+  min-height: 100vh;
+  color: var(--text);
+  background:
+    radial-gradient(circle at 10% 0%, #cde7ff 0, transparent 45%),
+    radial-gradient(circle at 90% 0%, #dbf1ff 0, transparent 45%),
+    linear-gradient(150deg, var(--bg-a), var(--bg-b));
+}
+
+.page {
+  max-width: 980px;
+  margin: 0 auto;
+  padding: 20px 14px 34px;
+}
+
+.hero {
+  background: linear-gradient(115deg, #1056a8, #1195b6);
+  color: white;
+  border-radius: 16px;
+  padding: 20px;
+  box-shadow: 0 12px 28px rgba(6, 41, 93, 0.22);
+}
+
+.hero h1 {
+  margin: 0;
+  font-size: 1.6rem;
+}
+
+.hero p {
+  margin: 7px 0 0;
+  opacity: 0.95;
+}
+
+.tabs {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin: 12px 0;
+}
+
+.tab {
+  background: #e9f0fb;
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  color: #1f3958;
+  text-decoration: none;
+  font-weight: 600;
+  padding: 8px 11px;
+}
+
+.tab.active {
+  background: #fff;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: 14px;
+  padding: 14px;
+  box-shadow: 0 8px 24px rgba(14, 52, 95, 0.08);
+}
+
+h2 {
+  margin: 0;
+}
+
+.description {
+  margin: 8px 0 12px;
+  color: var(--muted);
+}
+
+.form {
+  display: grid;
+  gap: 8px;
+}
+
+label {
+  font-size: 0.85rem;
+  color: #344e6b;
+}
+
+input {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 10px;
+  font-size: 0.94rem;
+}
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+button {
+  border: 0;
+  border-radius: 10px;
+  padding: 9px 12px;
+  color: #fff;
+  font-weight: 600;
+  background: linear-gradient(120deg, var(--accent), var(--accent-2));
+  cursor: pointer;
+}
+
+button.secondary {
+  background: linear-gradient(120deg, #4f5f77, #6f7f98);
+}
+
+button:disabled {
+  opacity: 0.65;
+  cursor: not-allowed;
+}
+
+.status {
+  margin: 10px 0 0;
+}
+
+.status.ok {
+  color: var(--ok);
+}
+
+.status.err {
+  color: var(--err);
+}
+
+.mono {
+  font-family: "SF Mono", Menlo, Consolas, monospace;
+}
+
+pre {
+  margin: 12px 0 0;
+  padding: 12px;
+  border-radius: 10px;
+  background: #0f1e33;
+  color: #d8e8ff;
+  max-height: 340px;
+  overflow: auto;
+  font-size: 0.8rem;
+}
