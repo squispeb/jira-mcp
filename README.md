@@ -161,8 +161,18 @@ The Worker runtime now supports user-based API tokens using D1.
 4. Use auth endpoints:
    - `POST /auth/register` with `{ "email": "...", "password": "..." }`
    - `POST /auth/login` with `{ "email": "...", "password": "..." }`
+   - `GET /auth/me` with `Authorization: Bearer mcp_...`
+   - `GET /auth/tokens` with `Authorization: Bearer mcp_...`
+   - `POST /auth/tokens` with `Authorization: Bearer mcp_...`
+   - `POST /auth/tokens/revoke` with `Authorization: Bearer mcp_...` and `{ "tokenId": "..." }`
 
 `/auth/login` returns a per-user bearer token (`mcp_...`) that can be used for MCP requests.
+
+Token persistence behavior:
+
+- Tokens are stored in D1 and remain valid across Worker restarts and deploys.
+- Set `neverExpires: true` (or `expiresInDays: 0`) to issue non-expiring tokens.
+- Revoke tokens with `/auth/tokens/revoke` for immediate invalidation.
 
 If you prefer a browser flow instead of curl, open the auth console UI:
 

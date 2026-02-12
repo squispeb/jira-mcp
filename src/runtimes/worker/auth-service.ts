@@ -1,6 +1,7 @@
 type D1PreparedStatementLike = {
   bind(...values: unknown[]): {
     first<T = Record<string, unknown>>(): Promise<T | null>;
+    all<T = Record<string, unknown>>(): Promise<{ results: T[] }>;
     run(): Promise<unknown>;
   };
 };
@@ -19,6 +20,27 @@ type LoginPayload = {
   password: string;
   tokenName?: string;
   expiresInDays?: number;
+  neverExpires?: boolean;
+};
+
+type TokenCreatePayload = {
+  tokenName?: string;
+  expiresInDays?: number;
+  neverExpires?: boolean;
+};
+
+type TokenRevokePayload = {
+  tokenId: string;
+};
+
+type TokenRow = {
+  id: string;
+  token_name: string;
+  token_prefix: string;
+  created_at: string;
+  last_used_at: string | null;
+  expires_at: string | null;
+  revoked_at: string | null;
 };
 
 type UserRow = {
@@ -69,6 +91,34 @@ export class WorkerAuthService {
         return methodNotAllowed(["POST"]);
       }
       return this.login(request);
+    }
+
+    if (url.pathname === "/auth/me") {
+      if (request.method !== "GET") {
+        return methodNotAllowed(["GET"]);
+      }
+
+      return this.me(request);
+    }
+
+    if (url.pathname === "/auth/tokens") {
+      if (request.method === "GET") {
+        return this.listTokens(request);
+      }
+
+      if (request.method === "POST") {
+        return this.createToken(request);
+      }
+
+      return methodNotAllowed(["GET", "POST"]);
+    }
+
+    if (url.pathname === "/auth/tokens/revoke") {
+      if (request.method !== "POST") {
+        return methodNotAllowed(["POST"]);
+      }
+
+      return this.revokeToken(request);
     }
 
     return null;
@@ -211,18 +261,219 @@ export class WorkerAuthService {
       return jsonResponse(401, { error: "Invalid email or password." });
     }
 
+    const tokenOptions = validateTokenOptions(payload.value);
+    if (!tokenOptions.ok) {
+      return jsonResponse(400, { error: tokenOptions.error });
+    }
+
     const tokenPlainText = `mcp_${randomBase64Url(32)}`;
+    const issuedToken = await this.issueToken(user.id, tokenPlainText, tokenOptions.value);
+
+    return jsonResponse(200, {
+      token: issuedToken.token,
+      tokenId: issuedToken.tokenId,
+      tokenName: issuedToken.tokenName,
+      tokenPrefix: issuedToken.tokenPrefix,
+      expiresAt: issuedToken.expiresAt,
+      user: {
+        id: user.id,
+        email: user.email,
+      },
+    });
+  }
+
+  private async me(request: Request): Promise<Response> {
+    const context = await this.requireUserContext(request);
+    if (!context) {
+      return jsonResponse(401, { error: "Unauthorized" });
+    }
+
+    return jsonResponse(200, {
+      user: {
+        id: context.userId,
+        email: context.email,
+      },
+      currentTokenId: context.tokenId,
+    });
+  }
+
+  private async listTokens(request: Request): Promise<Response> {
+    if (!this.db) {
+      return jsonResponse(503, {
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
+      });
+    }
+
+    const context = await this.requireUserContext(request);
+    if (!context) {
+      return jsonResponse(401, { error: "Unauthorized" });
+    }
+
+    const tokenRows = await this.db
+      .prepare(
+        `
+          SELECT
+            id,
+            token_name,
+            token_prefix,
+            created_at,
+            last_used_at,
+            expires_at,
+            revoked_at
+          FROM api_tokens
+          WHERE user_id = ?
+          ORDER BY created_at DESC
+          LIMIT 100
+        `,
+      )
+      .bind(context.userId)
+      .all<TokenRow>();
+
+    return jsonResponse(200, {
+      currentTokenId: context.tokenId,
+      tokens: tokenRows.results.map((token) => ({
+        id: token.id,
+        tokenName: token.token_name,
+        tokenPrefix: token.token_prefix,
+        createdAt: token.created_at,
+        lastUsedAt: token.last_used_at,
+        expiresAt: token.expires_at,
+        revokedAt: token.revoked_at,
+        isCurrent: token.id === context.tokenId,
+      })),
+    });
+  }
+
+  private async createToken(request: Request): Promise<Response> {
+    if (!this.db) {
+      return jsonResponse(503, {
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
+      });
+    }
+
+    const context = await this.requireUserContext(request);
+    if (!context) {
+      return jsonResponse(401, { error: "Unauthorized" });
+    }
+
+    const payload = await readJson<TokenCreatePayload>(request);
+    if (!payload.ok) {
+      return jsonResponse(400, { error: payload.error });
+    }
+
+    const tokenOptions = validateTokenOptions(payload.value);
+    if (!tokenOptions.ok) {
+      return jsonResponse(400, { error: tokenOptions.error });
+    }
+
+    const tokenPlainText = `mcp_${randomBase64Url(32)}`;
+    const issuedToken = await this.issueToken(context.userId, tokenPlainText, tokenOptions.value);
+
+    return jsonResponse(201, {
+      token: issuedToken.token,
+      tokenId: issuedToken.tokenId,
+      tokenName: issuedToken.tokenName,
+      tokenPrefix: issuedToken.tokenPrefix,
+      expiresAt: issuedToken.expiresAt,
+      user: {
+        id: context.userId,
+        email: context.email,
+      },
+    });
+  }
+
+  private async revokeToken(request: Request): Promise<Response> {
+    if (!this.db) {
+      return jsonResponse(503, {
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
+      });
+    }
+
+    const context = await this.requireUserContext(request);
+    if (!context) {
+      return jsonResponse(401, { error: "Unauthorized" });
+    }
+
+    const payload = await readJson<TokenRevokePayload>(request);
+    if (!payload.ok) {
+      return jsonResponse(400, { error: payload.error });
+    }
+
+    const tokenId = payload.value.tokenId?.trim();
+    if (!tokenId) {
+      return jsonResponse(400, { error: "tokenId is required." });
+    }
+
+    const token = await this.db
+      .prepare(
+        `
+          SELECT id, revoked_at
+          FROM api_tokens
+          WHERE id = ? AND user_id = ?
+          LIMIT 1
+        `,
+      )
+      .bind(tokenId, context.userId)
+      .first<{ id: string; revoked_at: string | null }>();
+
+    if (!token) {
+      return jsonResponse(404, { error: "Token not found for this user." });
+    }
+
+    if (token.revoked_at) {
+      return jsonResponse(200, {
+        tokenId,
+        revokedAt: token.revoked_at,
+        alreadyRevoked: true,
+      });
+    }
+
+    const revokedAt = nowIso();
+    await this.db
+      .prepare("UPDATE api_tokens SET revoked_at = ? WHERE id = ? AND user_id = ?")
+      .bind(revokedAt, tokenId, context.userId)
+      .run();
+
+    return jsonResponse(200, {
+      tokenId,
+      revokedAt,
+      alreadyRevoked: false,
+    });
+  }
+
+  private async requireUserContext(request: Request): Promise<UserAuthContext | null> {
+    const token = getBearerToken(request);
+    if (!token) {
+      return null;
+    }
+
+    return this.validateUserToken(token);
+  }
+
+  private async issueToken(
+    userId: string,
+    tokenPlainText: string,
+    options: {
+      tokenName: string;
+      expiresAt: string | null;
+    },
+  ): Promise<{
+    token: string;
+    tokenId: string;
+    tokenName: string;
+    tokenPrefix: string;
+    expiresAt: string | null;
+  }> {
+    if (!this.db) {
+      throw new Error("Auth DB is not configured.");
+    }
+
     const tokenHash = await hashToken(tokenPlainText);
     const tokenId = crypto.randomUUID();
     const createdAt = nowIso();
-    const requestedTtlDays = payload.value.expiresInDays;
-    const ttlDays =
-      typeof requestedTtlDays === "number"
-        ? Math.max(1, Math.min(MAX_TOKEN_TTL_DAYS, Math.floor(requestedTtlDays)))
-        : DEFAULT_TOKEN_TTL_DAYS;
-    const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
     const tokenPrefix = tokenPlainText.slice(0, 12);
-    const tokenName = payload.value.tokenName?.trim() || "default";
+    const tokenName = options.tokenName;
+    const expiresAt = options.expiresAt;
 
     await this.db
       .prepare(
@@ -239,21 +490,97 @@ export class WorkerAuthService {
           VALUES (?, ?, ?, ?, ?, ?, ?)
         `,
       )
-      .bind(tokenId, user.id, tokenName, tokenPrefix, tokenHash, createdAt, expiresAt)
+      .bind(tokenId, userId, tokenName, tokenPrefix, tokenHash, createdAt, expiresAt)
       .run();
 
-    return jsonResponse(200, {
+    return {
       token: tokenPlainText,
       tokenId,
       tokenName,
       tokenPrefix,
       expiresAt,
-      user: {
-        id: user.id,
-        email: user.email,
-      },
-    });
+    };
   }
+}
+
+function getBearerToken(request: Request): string | null {
+  const header = request.headers.get("authorization");
+  if (!header) {
+    return null;
+  }
+
+  const match = header.match(/^Bearer\s+(.+)$/i);
+  return match ? match[1].trim() : null;
+}
+
+function validateTokenOptions(options: {
+  tokenName?: string;
+  expiresInDays?: number;
+  neverExpires?: boolean;
+}):
+  | {
+      ok: true;
+      value: {
+        tokenName: string;
+        expiresAt: string | null;
+      };
+    }
+  | {
+      ok: false;
+      error: string;
+    } {
+  const tokenName = options.tokenName?.trim() || "default";
+  if (tokenName.length > 80) {
+    return {
+      ok: false,
+      error: "tokenName must be 80 characters or fewer.",
+    };
+  }
+
+  if (options.neverExpires === true) {
+    return {
+      ok: true,
+      value: {
+        tokenName,
+        expiresAt: null,
+      },
+    };
+  }
+
+  const requestedTtlDays = options.expiresInDays;
+  if (requestedTtlDays === 0) {
+    return {
+      ok: true,
+      value: {
+        tokenName,
+        expiresAt: null,
+      },
+    };
+  }
+
+  if (
+    typeof requestedTtlDays === "number" &&
+    (!Number.isFinite(requestedTtlDays) || requestedTtlDays < 0)
+  ) {
+    return {
+      ok: false,
+      error: "expiresInDays must be a positive number, 0, or omitted.",
+    };
+  }
+
+  const ttlDays =
+    typeof requestedTtlDays === "number"
+      ? Math.max(1, Math.min(MAX_TOKEN_TTL_DAYS, Math.floor(requestedTtlDays)))
+      : DEFAULT_TOKEN_TTL_DAYS;
+  const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
+
+  return {
+    ok: true,
+    value: {
+      tokenName,
+      expiresAt,
+    },
+  };
 }
 
 async function readJson<T>(

@@ -161,3 +161,22 @@ pre {
   overflow: auto;
   font-size: 0.8rem;
 }
+
+.token-list {
+  display: grid;
+  gap: 10px;
+  margin-top: 10px;
+}
+
+.token-item {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px;
+  background: #f8fbff;
+}
+
+.token-meta {
+  margin-top: 4px;
+  color: var(--muted);
+  font-size: 0.82rem;
+}

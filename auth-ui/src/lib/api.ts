@@ -2,11 +2,22 @@ export type LoginResponse = {
   token: string;
   tokenId: string;
   tokenPrefix: string;
-  expiresAt: string;
+  expiresAt: string | null;
   user: {
     id: string;
     email: string;
   };
+};
+
+export type AuthTokenInfo = {
+  id: string;
+  tokenName: string;
+  tokenPrefix: string;
+  createdAt: string;
+  lastUsedAt: string | null;
+  expiresAt: string | null;
+  revokedAt: string | null;
+  isCurrent: boolean;
 };
 
 export type McpResult = {
@@ -30,13 +41,44 @@ export async function loginUser(
   password: string,
   tokenName: string,
   expiresInDays: number,
+  neverExpires: boolean,
 ) {
   return request<LoginResponse>("POST", "/auth/login", {
     email,
     password,
     tokenName,
     expiresInDays,
+    neverExpires,
   });
+}
+
+export async function createToken(
+  authToken: string,
+  tokenName: string,
+  expiresInDays: number,
+  neverExpires: boolean,
+) {
+  return requestWithAuth<LoginResponse>(authToken, "POST", "/auth/tokens", {
+    tokenName,
+    expiresInDays,
+    neverExpires,
+  });
+}
+
+export async function listTokens(authToken: string) {
+  return requestWithAuth<{ currentTokenId: string; tokens: AuthTokenInfo[] }>(
+    authToken,
+    "GET",
+    "/auth/tokens",
+  );
+}
+
+export async function revokeToken(authToken: string, tokenId: string) {
+  return requestWithAuth<{
+    tokenId: string;
+    revokedAt: string;
+    alreadyRevoked: boolean;
+  }>(authToken, "POST", "/auth/tokens/revoke", { tokenId });
 }
 
 export async function initializeMcp(
@@ -203,6 +245,31 @@ async function request<T>(method: HttpMethod, path: string, body?: unknown): Pro
     method,
     headers: {
       "Content-Type": "application/json",
+    },
+    body: body ? JSON.stringify(body) : undefined,
+  });
+
+  const payload = await response.json().catch(() => null);
+  if (!response.ok) {
+    const message =
+      (payload as { error?: string } | null)?.error || `Request failed (${response.status})`;
+    throw new Error(message);
+  }
+
+  return payload as T;
+}
+
+async function requestWithAuth<T>(
+  authToken: string,
+  method: HttpMethod,
+  path: string,
+  body?: unknown,
+): Promise<T> {
+  const response = await fetch(withBaseUrl(path), {
+    method,
+    headers: {
+      "Content-Type": "application/json",
+      Authorization: `Bearer ${authToken}`,
     },
     body: body ? JSON.stringify(body) : undefined,
   });
