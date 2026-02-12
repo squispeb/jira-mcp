@@ -27,6 +27,7 @@
     "dev:http": "tsx watch src/index.ts",
     "dev:worker": "wrangler dev",
     "deploy:worker": "wrangler deploy",
+    "smoke:worker": "tsx scripts/mcp-smoke-test.ts",
     "lint": "oxlint",
     "format": "oxfmt",
     "inspect": "pnpx @modelcontextprotocol/inspector",

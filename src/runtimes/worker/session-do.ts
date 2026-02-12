@@ -39,21 +39,44 @@ export class JiraMcpSessionDurableObject {
   private async handleMcpRequest(request: Request): Promise<Response> {
     try {
       const parsedBody = await parseJsonBody(request);
+      if (parsedBody.invalidJson) {
+        return createJsonRpcError(400, -32700, "Parse error: request body must be valid JSON");
+      }
+
+      const body = parsedBody.value;
       const sessionId = getSessionIdFromRequest(request);
       const existingSession = sessionId ? this.sessions.get(sessionId) : undefined;
 
       if (existingSession) {
-        return existingSession.transport.handleRequest(request, { parsedBody });
+        return existingSession.transport.handleRequest(request, {
+          parsedBody: body,
+        });
       }
 
-      const isInit = request.method === "POST" && parsedBody && isInitializeRequest(parsedBody);
+      if (sessionId) {
+        return createJsonRpcError(
+          404,
+          -32001,
+          "Unknown or expired session ID. Re-run initialize to create a new session.",
+        );
+      }
+
+      const isInit = request.method === "POST" && !!body && isInitializeRequest(body);
       if (!isInit) {
-        return createJsonRpcError(400, -32000, "Bad Request: No valid session ID provided");
+        return createJsonRpcError(
+          400,
+          -32000,
+          "Bad Request: Send initialize first or include a valid MCP-Session-Id header.",
+        );
       }
 
       const credentials = readJiraCredentials(request);
       if (!credentials) {
-        return new Response("Missing Jira credentials", { status: 400 });
+        return createJsonRpcError(
+          400,
+          -32000,
+          "Missing Jira credentials. Provide X-Jira-Base-Url, X-Jira-Username, and X-Jira-Api-Token.",
+        );
       }
 
       const server = new JiraMcpServer(
@@ -82,7 +105,7 @@ export class JiraMcpSessionDurableObject {
       };
 
       await server.connect(transport);
-      return transport.handleRequest(request, { parsedBody });
+      return transport.handleRequest(request, { parsedBody: body });
     } catch (error) {
       console.error("Error handling /mcp request in Durable Object:", error);
       return createJsonRpcError(500, -32603, "Internal server error");
@@ -104,15 +127,16 @@ function createJsonRpcError(status: number, code: number, message: string): Resp
   );
 }
 
-async function parseJsonBody(request: Request): Promise<unknown> {
+async function parseJsonBody(request: Request): Promise<{ value: unknown; invalidJson: boolean }> {
   if (request.method !== "POST") {
-    return undefined;
+    return { value: undefined, invalidJson: false };
   }
 
-  return request
-    .clone()
-    .json()
-    .catch(() => undefined);
+  try {
+    return { value: await request.clone().json(), invalidJson: false };
+  } catch {
+    return { value: undefined, invalidJson: true };
+  }
 }
 
 function readJiraCredentials(request: Request): JiraClientCredentials | null {

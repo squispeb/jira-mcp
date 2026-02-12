@@ -29,7 +29,14 @@ export default {
       return new Response("Not Found", { status: 404 });
     }
 
-    if (!isAuthorized(request, env)) {
+    const authTokens = parseAuthTokens(env.MCP_AUTH_TOKEN, env.MCP_AUTH_TOKENS);
+    if (authTokens.size === 0) {
+      return new Response("Server misconfigured: missing MCP auth token", {
+        status: 500,
+      });
+    }
+
+    if (!isAuthorized(request, authTokens)) {
       return new Response("Unauthorized", { status: 401 });
     }
 
@@ -41,13 +48,11 @@ export default {
 
 export { JiraMcpSessionDurableObject };
 
-function isAuthorized(request: Request, env: WorkerEnv): boolean {
+function isAuthorized(request: Request, authTokens: Set<string>): boolean {
   const token = getBearerToken(request);
   if (!token) {
     return false;
   }
-
-  const authTokens = parseAuthTokens(env.MCP_AUTH_TOKEN, env.MCP_AUTH_TOKENS);
   return authTokens.has(token);
 }
 

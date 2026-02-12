@@ -96,10 +96,12 @@ CLI mode expects `JIRA_BASE_URL`, `JIRA_USERNAME`, and `JIRA_API_TOKEN` to be pr
 
 This repository now includes a Worker runtime with Durable Object-backed MCP session handling for robust, stateful streamable HTTP support.
 
-1. Create your Worker secrets/vars:
+1. Create a local dev file for Wrangler:
 
    ```bash
-   npx wrangler secret put MCP_AUTH_TOKEN
+   cat > .dev.vars <<'EOF'
+   MCP_AUTH_TOKEN=change-me
+   EOF
    ```
 
 2. Run locally:
@@ -108,7 +110,13 @@ This repository now includes a Worker runtime with Durable Object-backed MCP ses
    npm run dev:worker
    ```
 
-3. Deploy:
+3. Set deploy-time secret:
+
+   ```bash
+   npx wrangler secret put MCP_AUTH_TOKEN
+   ```
+
+4. Deploy:
 
    ```bash
    npm run deploy:worker
@@ -118,12 +126,19 @@ Worker entrypoint: `src/runtimes/worker/entry.ts`
 
 Durable Object session manager: `src/runtimes/worker/session-do.ts`
 
+Optional end-to-end smoke test:
+
+```bash
+set -a && source .env.dev && set +a
+npm run smoke:worker
+```
+
 ### Connecting with Cursor
 
 1. In Cursor, open the Command Palette (Ctrl+Shift+P or Cmd+Shift+P)
 2. Type **"Connect to MCP Server"**
 3. Select **"Connect to MCP Server"**
-4. Enter the server URL (default: `http://localhost:3000/sse`)
+4. Enter the server URL (recommended: `http://localhost:3000/mcp` for Node or `http://localhost:8787/mcp` for Worker dev)
 5. Configure these headers in your MCP client (required for HTTP mode):
    ```
    Authorization: Bearer <MCP_AUTH_TOKEN>
@@ -132,8 +147,11 @@ Durable Object session manager: `src/runtimes/worker/session-do.ts`
    X-Jira-Api-Token: your-api-token-here
    ```
 
-If your MCP client cannot send headers, you can pass the Jira parameters as query parameters on `/sse` (less secure):
-`http://localhost:3000/sse?jiraBaseUrl=...&jiraUsername=...&jiraApiToken=...`
+If your MCP client cannot send Jira headers, you can pass Jira parameters as query parameters on `/mcp` (less secure):
+`http://localhost:3000/mcp?jiraBaseUrl=...&jiraUsername=...&jiraApiToken=...`
+
+For manual `curl` testing with streamable HTTP, include both content types in `Accept`:
+`Accept: application/json, text/event-stream`
 
 ## Available Tools
 
