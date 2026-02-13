@@ -1,7 +1,9 @@
 import { FormEvent, useState } from "react";
-import { registerUser } from "../lib/api";
+import { useAuth } from "../lib/auth-context";
 
 export function RegisterPage() {
+  const { signUp } = useAuth();
+  const [name, setName] = useState("");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [message, setMessage] = useState("");
@@ -15,10 +17,10 @@ export function RegisterPage() {
     setIsLoading(true);
 
     try {
-      const response = await registerUser(email, password);
-      setMessage(`Registered ${response.email}`);
+      await signUp(name.trim() || email, email, password);
+      setMessage(`Registered and signed in as ${email}`);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Failed to register user.");
+      setError(err instanceof Error ? err.message : "Failed to register account.");
     } finally {
       setIsLoading(false);
     }
@@ -30,6 +32,16 @@ export function RegisterPage() {
       <p className="description">Creates a new account in Worker D1 auth storage.</p>
 
       <form className="form" onSubmit={onSubmit}>
+        <label htmlFor="register-name">Display name</label>
+        <input
+          id="register-name"
+          type="text"
+          required
+          value={name}
+          onChange={(event) => setName(event.target.value)}
+          placeholder="Jane Doe"
+        />
+
         <label htmlFor="register-email">Email</label>
         <input
           id="register-email"
@@ -47,7 +59,7 @@ export function RegisterPage() {
           required
           value={password}
           onChange={(event) => setPassword(event.target.value)}
-          placeholder="At least 10 characters"
+          placeholder="At least 8 characters"
         />
 
         <button type="submit" disabled={isLoading}>

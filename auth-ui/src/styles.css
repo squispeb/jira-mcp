@@ -41,6 +41,10 @@ body {
   border-radius: 16px;
   padding: 20px;
   box-shadow: 0 12px 28px rgba(6, 41, 93, 0.22);
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 16px;
 }
 
 .hero h1 {
@@ -51,6 +55,37 @@ body {
 .hero p {
   margin: 7px 0 0;
   opacity: 0.95;
+}
+
+.hero-content {
+  flex: 1;
+}
+
+.user-info {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
+}
+
+.user-email {
+  font-size: 0.85rem;
+  opacity: 0.9;
+  background: rgba(255, 255, 255, 0.15);
+  padding: 4px 10px;
+  border-radius: 6px;
+}
+
+.logout-btn {
+  background: rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+  color: white;
+  padding: 5px 12px;
+  font-size: 0.8rem;
+}
+
+.logout-btn:hover {
+  background: rgba(255, 255, 255, 0.3);
 }
 
 .tabs {
@@ -179,4 +214,17 @@ pre {
   margin-top: 4px;
   color: var(--muted);
   font-size: 0.82rem;
+}
+
+.token-display {
+  display: flex;
+  gap: 8px;
+}
+
+.token-display input {
+  flex: 1;
+}
+
+.toggle-btn {
+  min-width: 60px;
 }

@@ -1,11 +1,17 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { createBrowserRouter, Navigate, RouterProvider } from "react-router-dom";
+import { AuthProvider } from "./lib/auth-context";
+import { ProtectedRoute } from "./lib/protected-route";
 import { AuthLayout } from "./ui/layout";
 import { LoginPage } from "./ui/login-page";
 import { RegisterPage } from "./ui/register-page";
 import { McpTestPage } from "./ui/mcp-test-page";
 import "./styles.css";
+
+const runtimeBasename =
+  import.meta.env.VITE_ROUTER_BASENAME ||
+  (window.location.pathname.startsWith("/auth") ? "/auth" : "/");
 
 const router = createBrowserRouter(
   [
@@ -15,11 +21,19 @@ const router = createBrowserRouter(
       children: [
         {
           index: true,
-          element: <Navigate to="/sign-up" replace />,
+          element: (
+            <ProtectedRoute redirectTo="/token">
+              <Navigate to="/sign-up" replace />
+            </ProtectedRoute>
+          ),
         },
         {
           path: "sign-up",
-          element: <RegisterPage />,
+          element: (
+            <ProtectedRoute>
+              <RegisterPage />
+            </ProtectedRoute>
+          ),
         },
         {
           path: "token",
@@ -33,12 +47,14 @@ const router = createBrowserRouter(
     },
   ],
   {
-    basename: "/auth",
+    basename: runtimeBasename,
   },
 );
 
 ReactDOM.createRoot(document.getElementById("root")!).render(
   <React.StrictMode>
-    <RouterProvider router={router} />
+    <AuthProvider>
+      <RouterProvider router={router} future={{ v7_startTransition: true }} />
+    </AuthProvider>
   </React.StrictMode>,
 );

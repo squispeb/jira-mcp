@@ -1,3 +1,7 @@
+import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
+import { drizzle } from "drizzle-orm/d1";
+import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+
 type D1PreparedStatementLike = {
   bind(...values: unknown[]): {
     first<T = Record<string, unknown>>(): Promise<T | null>;
@@ -9,6 +13,26 @@ type D1PreparedStatementLike = {
 export type D1DatabaseLike = {
   prepare(query: string): D1PreparedStatementLike;
 };
+
+const usersTable = sqliteTable("users", {
+  id: text("id").primaryKey(),
+  email: text("email").notNull(),
+  passwordHash: text("password_hash").notNull(),
+  passwordSalt: text("password_salt").notNull(),
+  createdAt: text("created_at").notNull(),
+});
+
+const apiTokensTable = sqliteTable("api_tokens", {
+  id: text("id").primaryKey(),
+  userId: text("user_id").notNull(),
+  tokenName: text("token_name").notNull(),
+  tokenPrefix: text("token_prefix").notNull(),
+  tokenHash: text("token_hash").notNull(),
+  createdAt: text("created_at").notNull(),
+  lastUsedAt: text("last_used_at"),
+  expiresAt: text("expires_at"),
+  revokedAt: text("revoked_at"),
+});
 
 type RegisterPayload = {
   email: string;
@@ -33,35 +57,19 @@ type TokenRevokePayload = {
   tokenId: string;
 };
 
-type TokenRow = {
-  id: string;
-  token_name: string;
-  token_prefix: string;
-  created_at: string;
-  last_used_at: string | null;
-  expires_at: string | null;
-  revoked_at: string | null;
-};
-
-type UserRow = {
-  id: string;
-  email: string;
-  password_hash: string;
-  password_salt: string;
-};
-
-type TokenValidationRow = {
-  token_id: string;
-  user_id: string;
-  email: string;
-};
-
 export type UserAuthContext = {
   type: "user";
   userId: string;
   email: string;
   tokenId: string;
 };
+
+type SessionUserContext = {
+  userId: string;
+  email: string;
+};
+
+type SessionUserResolver = (request: Request) => Promise<SessionUserContext | null>;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 10;
@@ -70,10 +78,21 @@ const MAX_TOKEN_TTL_DAYS = 365;
 const PASSWORD_HASH_ITERATIONS = 100000;
 
 export class WorkerAuthService {
-  constructor(private readonly db?: D1DatabaseLike) {}
+  constructor(
+    private readonly db?: D1DatabaseLike,
+    private readonly resolveSessionUser?: SessionUserResolver,
+  ) {}
 
   isConfigured(): boolean {
     return !!this.db;
+  }
+
+  private getDb() {
+    if (!this.db) {
+      return null;
+    }
+
+    return drizzle(this.db as never);
   }
 
   async handleAuthRequest(request: Request): Promise<Response | null> {
@@ -125,51 +144,53 @@ export class WorkerAuthService {
   }
 
   async validateUserToken(token: string): Promise<UserAuthContext | null> {
-    if (!this.db) {
+    const db = this.getDb();
+    if (!db) {
       return null;
     }
 
     const tokenHash = await hashToken(token);
     const now = nowIso();
 
-    const row = await this.db
-      .prepare(
-        `
-          SELECT
-            t.id AS token_id,
-            t.user_id AS user_id,
-            u.email AS email
-          FROM api_tokens t
-          INNER JOIN users u ON u.id = t.user_id
-          WHERE
-            t.token_hash = ?
-            AND t.revoked_at IS NULL
-            AND (t.expires_at IS NULL OR t.expires_at > ?)
-          LIMIT 1
-        `,
+    const rows = await db
+      .select({
+        tokenId: apiTokensTable.id,
+        userId: apiTokensTable.userId,
+        email: usersTable.email,
+      })
+      .from(apiTokensTable)
+      .innerJoin(usersTable, eq(usersTable.id, apiTokensTable.userId))
+      .where(
+        and(
+          eq(apiTokensTable.tokenHash, tokenHash),
+          isNull(apiTokensTable.revokedAt),
+          or(isNull(apiTokensTable.expiresAt), gt(apiTokensTable.expiresAt, now)),
+        ),
       )
-      .bind(tokenHash, now)
-      .first<TokenValidationRow>();
+      .limit(1);
+
+    const row = rows[0];
 
     if (!row) {
       return null;
     }
 
-    await this.db
-      .prepare("UPDATE api_tokens SET last_used_at = ? WHERE id = ?")
-      .bind(now, row.token_id)
-      .run();
+    await db
+      .update(apiTokensTable)
+      .set({ lastUsedAt: now })
+      .where(eq(apiTokensTable.id, row.tokenId));
 
     return {
       type: "user",
-      userId: row.user_id,
+      userId: row.userId,
       email: row.email,
-      tokenId: row.token_id,
+      tokenId: row.tokenId,
     };
   }
 
   private async register(request: Request): Promise<Response> {
-    if (!this.db) {
+    const db = this.getDb();
+    if (!db) {
       return jsonResponse(503, {
         error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
@@ -193,10 +214,12 @@ export class WorkerAuthService {
       });
     }
 
-    const existingUser = await this.db
-      .prepare("SELECT id FROM users WHERE email = ? LIMIT 1")
-      .bind(email)
-      .first<{ id: string }>();
+    const existingUserRows = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, email))
+      .limit(1);
+    const existingUser = existingUserRows[0];
 
     if (existingUser) {
       return jsonResponse(409, {
@@ -209,15 +232,13 @@ export class WorkerAuthService {
     const passwordHash = await hashPassword(password, salt);
     const createdAt = nowIso();
 
-    await this.db
-      .prepare(
-        `
-          INSERT INTO users (id, email, password_hash, password_salt, created_at)
-          VALUES (?, ?, ?, ?, ?)
-        `,
-      )
-      .bind(userId, email, passwordHash, salt, createdAt)
-      .run();
+    await db.insert(usersTable).values({
+      id: userId,
+      email,
+      passwordHash,
+      passwordSalt: salt,
+      createdAt,
+    });
 
     return jsonResponse(201, {
       userId,
@@ -227,7 +248,8 @@ export class WorkerAuthService {
   }
 
   private async login(request: Request): Promise<Response> {
-    if (!this.db) {
+    const db = this.getDb();
+    if (!db) {
       return jsonResponse(503, {
         error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
@@ -247,17 +269,24 @@ export class WorkerAuthService {
       });
     }
 
-    const user = await this.db
-      .prepare("SELECT id, email, password_hash, password_salt FROM users WHERE email = ? LIMIT 1")
-      .bind(email)
-      .first<UserRow>();
+    const users = await db
+      .select({
+        id: usersTable.id,
+        email: usersTable.email,
+        passwordHash: usersTable.passwordHash,
+        passwordSalt: usersTable.passwordSalt,
+      })
+      .from(usersTable)
+      .where(eq(usersTable.email, email))
+      .limit(1);
+    const user = users[0];
 
     if (!user) {
       return jsonResponse(401, { error: "Invalid email or password." });
     }
 
-    const computedHash = await hashPassword(password, user.password_salt);
-    if (!timingSafeEqual(computedHash, user.password_hash)) {
+    const computedHash = await hashPassword(password, user.passwordSalt);
+    if (!timingSafeEqual(computedHash, user.passwordHash)) {
       return jsonResponse(401, { error: "Invalid email or password." });
     }
 
@@ -293,12 +322,13 @@ export class WorkerAuthService {
         id: context.userId,
         email: context.email,
       },
-      currentTokenId: context.tokenId,
+      currentTokenId: context.tokenId || null,
     });
   }
 
   private async listTokens(request: Request): Promise<Response> {
-    if (!this.db) {
+    const db = this.getDb();
+    if (!db) {
       return jsonResponse(503, {
         error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
@@ -309,37 +339,32 @@ export class WorkerAuthService {
       return jsonResponse(401, { error: "Unauthorized" });
     }
 
-    const tokenRows = await this.db
-      .prepare(
-        `
-          SELECT
-            id,
-            token_name,
-            token_prefix,
-            created_at,
-            last_used_at,
-            expires_at,
-            revoked_at
-          FROM api_tokens
-          WHERE user_id = ?
-          ORDER BY created_at DESC
-          LIMIT 100
-        `,
-      )
-      .bind(context.userId)
-      .all<TokenRow>();
+    const tokenRows = await db
+      .select({
+        id: apiTokensTable.id,
+        tokenName: apiTokensTable.tokenName,
+        tokenPrefix: apiTokensTable.tokenPrefix,
+        createdAt: apiTokensTable.createdAt,
+        lastUsedAt: apiTokensTable.lastUsedAt,
+        expiresAt: apiTokensTable.expiresAt,
+        revokedAt: apiTokensTable.revokedAt,
+      })
+      .from(apiTokensTable)
+      .where(eq(apiTokensTable.userId, context.userId))
+      .orderBy(desc(apiTokensTable.createdAt))
+      .limit(100);
 
     return jsonResponse(200, {
-      currentTokenId: context.tokenId,
-      tokens: tokenRows.results.map((token) => ({
+      currentTokenId: context.tokenId || null,
+      tokens: tokenRows.map((token) => ({
         id: token.id,
-        tokenName: token.token_name,
-        tokenPrefix: token.token_prefix,
-        createdAt: token.created_at,
-        lastUsedAt: token.last_used_at,
-        expiresAt: token.expires_at,
-        revokedAt: token.revoked_at,
-        isCurrent: token.id === context.tokenId,
+        tokenName: token.tokenName,
+        tokenPrefix: token.tokenPrefix,
+        createdAt: token.createdAt,
+        lastUsedAt: token.lastUsedAt,
+        expiresAt: token.expiresAt,
+        revokedAt: token.revokedAt,
+        isCurrent: context.tokenId ? token.id === context.tokenId : false,
       })),
     });
   }
@@ -383,7 +408,8 @@ export class WorkerAuthService {
   }
 
   private async revokeToken(request: Request): Promise<Response> {
-    if (!this.db) {
+    const db = this.getDb();
+    if (!db) {
       return jsonResponse(503, {
         error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
@@ -404,35 +430,30 @@ export class WorkerAuthService {
       return jsonResponse(400, { error: "tokenId is required." });
     }
 
-    const token = await this.db
-      .prepare(
-        `
-          SELECT id, revoked_at
-          FROM api_tokens
-          WHERE id = ? AND user_id = ?
-          LIMIT 1
-        `,
-      )
-      .bind(tokenId, context.userId)
-      .first<{ id: string; revoked_at: string | null }>();
+    const tokens = await db
+      .select({ id: apiTokensTable.id, revokedAt: apiTokensTable.revokedAt })
+      .from(apiTokensTable)
+      .where(and(eq(apiTokensTable.id, tokenId), eq(apiTokensTable.userId, context.userId)))
+      .limit(1);
+    const token = tokens[0];
 
     if (!token) {
       return jsonResponse(404, { error: "Token not found for this user." });
     }
 
-    if (token.revoked_at) {
+    if (token.revokedAt) {
       return jsonResponse(200, {
         tokenId,
-        revokedAt: token.revoked_at,
+        revokedAt: token.revokedAt,
         alreadyRevoked: true,
       });
     }
 
     const revokedAt = nowIso();
-    await this.db
-      .prepare("UPDATE api_tokens SET revoked_at = ? WHERE id = ? AND user_id = ?")
-      .bind(revokedAt, tokenId, context.userId)
-      .run();
+    await db
+      .update(apiTokensTable)
+      .set({ revokedAt })
+      .where(and(eq(apiTokensTable.id, tokenId), eq(apiTokensTable.userId, context.userId)));
 
     return jsonResponse(200, {
       tokenId,
@@ -443,11 +464,77 @@ export class WorkerAuthService {
 
   private async requireUserContext(request: Request): Promise<UserAuthContext | null> {
     const token = getBearerToken(request);
-    if (!token) {
+    if (token) {
+      return this.validateUserToken(token);
+    }
+
+    if (!this.resolveSessionUser) {
       return null;
     }
 
-    return this.validateUserToken(token);
+    const sessionUser = await this.resolveSessionUser(request);
+    if (!sessionUser) {
+      return null;
+    }
+
+    const legacyUserId = await this.resolveLegacyUserIdForSession(sessionUser);
+    if (!legacyUserId) {
+      return null;
+    }
+
+    return {
+      type: "user",
+      userId: legacyUserId,
+      email: sessionUser.email,
+      tokenId: "",
+    };
+  }
+
+  private async resolveLegacyUserIdForSession(
+    sessionUser: SessionUserContext,
+  ): Promise<string | null> {
+    const db = this.getDb();
+    if (!db) {
+      return null;
+    }
+
+    const normalizedEmail = sessionUser.email.trim().toLowerCase();
+    if (!normalizedEmail) {
+      return null;
+    }
+
+    const existingUsers = await db
+      .select({ id: usersTable.id })
+      .from(usersTable)
+      .where(eq(usersTable.email, normalizedEmail))
+      .limit(1);
+
+    if (existingUsers[0]?.id) {
+      return existingUsers[0].id;
+    }
+
+    const userId = sessionUser.userId || crypto.randomUUID();
+    const createdAt = nowIso();
+    const placeholderSalt = randomBase64Url(16);
+    const placeholderHash = await hashPassword(randomBase64Url(32), placeholderSalt);
+
+    try {
+      await db.insert(usersTable).values({
+        id: userId,
+        email: normalizedEmail,
+        passwordHash: placeholderHash,
+        passwordSalt: placeholderSalt,
+        createdAt,
+      });
+      return userId;
+    } catch {
+      const conflictUsers = await db
+        .select({ id: usersTable.id })
+        .from(usersTable)
+        .where(eq(usersTable.email, normalizedEmail))
+        .limit(1);
+      return conflictUsers[0]?.id || null;
+    }
   }
 
   private async issueToken(
@@ -464,7 +551,8 @@ export class WorkerAuthService {
     tokenPrefix: string;
     expiresAt: string | null;
   }> {
-    if (!this.db) {
+    const db = this.getDb();
+    if (!db) {
       throw new Error("Auth DB is not configured.");
     }
 
@@ -475,23 +563,17 @@ export class WorkerAuthService {
     const tokenName = options.tokenName;
     const expiresAt = options.expiresAt;
 
-    await this.db
-      .prepare(
-        `
-          INSERT INTO api_tokens (
-            id,
-            user_id,
-            token_name,
-            token_prefix,
-            token_hash,
-            created_at,
-            expires_at
-          )
-          VALUES (?, ?, ?, ?, ?, ?, ?)
-        `,
-      )
-      .bind(tokenId, userId, tokenName, tokenPrefix, tokenHash, createdAt, expiresAt)
-      .run();
+    await db.insert(apiTokensTable).values({
+      id: tokenId,
+      userId,
+      tokenName,
+      tokenPrefix,
+      tokenHash,
+      createdAt,
+      expiresAt,
+      lastUsedAt: null,
+      revokedAt: null,
+    });
 
     return {
       token: tokenPlainText,

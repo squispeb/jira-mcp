@@ -1,4 +1,5 @@
 import { D1DatabaseLike, UserAuthContext, WorkerAuthService } from "./auth-service";
+import { handleBetterAuthRequest, resolveBetterAuthUserFromRequest } from "./auth/better-auth";
 import { JiraMcpSessionDurableObject } from "./session-do";
 
 type DurableObjectIdLike = unknown;
@@ -18,6 +19,7 @@ type WorkerEnv = {
   MCP_AUTH_TOKEN?: string;
   MCP_AUTH_TOKENS?: string;
   AUTH_DB?: D1DatabaseLike;
+  BETTER_AUTH_SECRET?: string;
   AUTH_UI_URL?: string;
   AUTH_UI_ASSETS?: AssetsBindingLike;
   JIRA_MCP_SESSIONS: DurableObjectNamespaceLike;
@@ -26,49 +28,70 @@ type WorkerEnv = {
 type RequestAuthContext = { type: "static"; token: string } | UserAuthContext;
 
 const SESSION_HUB_NAME = "jira-mcp-session-hub";
+const DEFAULT_CORS_HEADERS =
+  "authorization,content-type,x-jira-base-url,x-jira-username,x-jira-api-token,mcp-session-id,mcp-protocol-version";
 
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
     const url = new URL(request.url);
-    const authService = new WorkerAuthService(env.AUTH_DB);
+
+    if (request.method === "OPTIONS" && request.headers.has("origin")) {
+      return createCorsPreflightResponse(request);
+    }
+
+    const betterAuthResponse = await handleBetterAuthRequest(
+      request,
+      env.AUTH_DB,
+      env.BETTER_AUTH_SECRET,
+    );
+    if (betterAuthResponse) {
+      return withCorsHeaders(request, betterAuthResponse);
+    }
+
+    const authService = new WorkerAuthService(env.AUTH_DB, (currentRequest) =>
+      resolveBetterAuthUserFromRequest(currentRequest, env.AUTH_DB, env.BETTER_AUTH_SECRET),
+    );
 
     const authResponse = await authService.handleAuthRequest(request);
     if (authResponse) {
-      return authResponse;
+      return withCorsHeaders(request, authResponse);
     }
 
     if (request.method === "GET") {
       const uiResponse = await maybeServeAuthUi(request, env);
       if (uiResponse) {
-        return uiResponse;
+        return withCorsHeaders(request, uiResponse);
       }
     }
 
     if (url.pathname === "/health") {
-      return new Response("ok");
+      return withCorsHeaders(request, new Response("ok"));
     }
 
     if (url.pathname !== "/mcp") {
-      return new Response("Not Found", { status: 404 });
+      return withCorsHeaders(request, new Response("Not Found", { status: 404 }));
     }
 
     const authTokens = parseAuthTokens(env.MCP_AUTH_TOKEN, env.MCP_AUTH_TOKENS);
     if (authTokens.size === 0 && !authService.isConfigured()) {
-      return new Response("Server misconfigured: missing MCP auth token", {
-        status: 500,
-      });
+      return withCorsHeaders(
+        request,
+        new Response("Server misconfigured: missing MCP auth token", {
+          status: 500,
+        }),
+      );
     }
 
     const authContext = await authorizeRequest(request, authTokens, authService);
     if (!authContext) {
-      return new Response("Unauthorized", { status: 401 });
+      return withCorsHeaders(request, new Response("Unauthorized", { status: 401 }));
     }
 
     const requestWithAuthHeaders = attachAuthHeaders(request, authContext);
 
     const id = env.JIRA_MCP_SESSIONS.idFromName(SESSION_HUB_NAME);
     const stub = env.JIRA_MCP_SESSIONS.get(id);
-    return stub.fetch(requestWithAuthHeaders);
+    return withCorsHeaders(request, await stub.fetch(requestWithAuthHeaders));
   },
 };
 
@@ -172,4 +195,46 @@ function attachAuthHeaders(request: Request, context: RequestAuthContext): Reque
   }
 
   return new Request(request, { headers });
+}
+
+function createCorsPreflightResponse(request: Request): Response {
+  const response = new Response(null, { status: 204 });
+  return withCorsHeaders(request, response);
+}
+
+function withCorsHeaders(request: Request, response: Response): Response {
+  const origin = request.headers.get("origin");
+  if (!origin || !isAllowedCorsOrigin(origin)) {
+    return response;
+  }
+
+  const headers = new Headers(response.headers);
+  headers.set("Access-Control-Allow-Origin", origin);
+  headers.set("Access-Control-Allow-Credentials", "true");
+  headers.set("Access-Control-Allow-Methods", "GET,POST,OPTIONS");
+  headers.set(
+    "Access-Control-Allow-Headers",
+    request.headers.get("access-control-request-headers") || DEFAULT_CORS_HEADERS,
+  );
+  headers.set("Access-Control-Expose-Headers", "mcp-session-id");
+  headers.append("Vary", "Origin");
+
+  return new Response(response.body, {
+    status: response.status,
+    statusText: response.statusText,
+    headers,
+  });
+}
+
+function isAllowedCorsOrigin(origin: string): boolean {
+  try {
+    const parsed = new URL(origin);
+    if (!["http:", "https:"].includes(parsed.protocol)) {
+      return false;
+    }
+
+    return parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+  } catch {
+    return false;
+  }
 }

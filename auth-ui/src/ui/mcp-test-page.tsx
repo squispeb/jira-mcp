@@ -5,7 +5,6 @@ import {
   getJiraBaseUrl,
   getJiraUsername,
   getSessionId,
-  getToken,
   setJiraBaseUrl,
   setJiraUsername,
   setSessionId,
@@ -22,15 +21,19 @@ export function McpTestPage() {
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setToken(getToken());
     setJiraBaseUrlState(getJiraBaseUrl());
     setJiraUsernameState(getJiraUsername());
     setSessionIdState(getSessionId());
   }, []);
 
-  function persistJiraFields() {
-    setJiraBaseUrl(jiraBaseUrl);
-    setJiraUsername(jiraUsername);
+  function handleJiraBaseUrlChange(value: string) {
+    setJiraBaseUrlState(value);
+    setJiraBaseUrl(value);
+  }
+
+  function handleJiraUsernameChange(value: string) {
+    setJiraUsernameState(value);
+    setJiraUsername(value);
   }
 
   function ensureRequired(): boolean {
@@ -53,7 +56,6 @@ export function McpTestPage() {
       return;
     }
 
-    persistJiraFields();
     const result = await initializeMcp(token, jiraBaseUrl, jiraUsername, jiraApiToken);
 
     if (!result.sessionId) {
@@ -75,7 +77,6 @@ export function McpTestPage() {
       return;
     }
 
-    persistJiraFields();
     const result = await listTools(token, jiraBaseUrl, jiraUsername, jiraApiToken, sessionId);
     setStatus(`Tools listed using session ${result.sessionId}`);
     setOutput(JSON.stringify(result.payload, null, 2));
@@ -90,7 +91,6 @@ export function McpTestPage() {
       return;
     }
 
-    persistJiraFields();
     const result = await getProjects(token, jiraBaseUrl, jiraUsername, jiraApiToken, sessionId);
     setStatus(`Project data fetched using session ${result.sessionId}`);
     setOutput(JSON.stringify(result.payload, null, 2));
@@ -132,7 +132,7 @@ export function McpTestPage() {
         <input
           id="jira-base-url"
           value={jiraBaseUrl}
-          onChange={(event) => setJiraBaseUrlState(event.target.value)}
+          onChange={(event) => handleJiraBaseUrlChange(event.target.value)}
           placeholder="https://your-domain.atlassian.net"
         />
 
@@ -140,7 +140,7 @@ export function McpTestPage() {
         <input
           id="jira-username"
           value={jiraUsername}
-          onChange={(event) => setJiraUsernameState(event.target.value)}
+          onChange={(event) => handleJiraUsernameChange(event.target.value)}
           placeholder="your-email@example.com"
         />
 

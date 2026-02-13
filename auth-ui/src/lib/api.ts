@@ -53,28 +53,27 @@ export async function loginUser(
 }
 
 export async function createToken(
-  authToken: string,
+  authToken: string | undefined,
   tokenName: string,
   expiresInDays: number,
   neverExpires: boolean,
 ) {
-  return requestWithAuth<LoginResponse>(authToken, "POST", "/auth/tokens", {
+  return requestWithOptionalAuth<LoginResponse>(authToken, "POST", "/auth/tokens", {
     tokenName,
     expiresInDays,
     neverExpires,
   });
 }
 
-export async function listTokens(authToken: string) {
-  return requestWithAuth<{ currentTokenId: string; tokens: AuthTokenInfo[] }>(
-    authToken,
-    "GET",
-    "/auth/tokens",
-  );
+export async function listTokens(authToken?: string) {
+  return requestWithOptionalAuth<{
+    currentTokenId: string | null;
+    tokens: AuthTokenInfo[];
+  }>(authToken, "GET", "/auth/tokens");
 }
 
-export async function revokeToken(authToken: string, tokenId: string) {
-  return requestWithAuth<{
+export async function revokeToken(authToken: string | undefined, tokenId: string) {
+  return requestWithOptionalAuth<{
     tokenId: string;
     revokedAt: string;
     alreadyRevoked: boolean;
@@ -243,6 +242,7 @@ function parseStreamableBody(raw: string): unknown {
 async function request<T>(method: HttpMethod, path: string, body?: unknown): Promise<T> {
   const response = await fetch(withBaseUrl(path), {
     method,
+    credentials: "include",
     headers: {
       "Content-Type": "application/json",
     },
@@ -259,18 +259,24 @@ async function request<T>(method: HttpMethod, path: string, body?: unknown): Pro
   return payload as T;
 }
 
-async function requestWithAuth<T>(
-  authToken: string,
+async function requestWithOptionalAuth<T>(
+  authToken: string | undefined,
   method: HttpMethod,
   path: string,
   body?: unknown,
 ): Promise<T> {
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+  };
+
+  if (authToken?.trim()) {
+    headers.Authorization = `Bearer ${authToken}`;
+  }
+
   const response = await fetch(withBaseUrl(path), {
     method,
-    headers: {
-      "Content-Type": "application/json",
-      Authorization: `Bearer ${authToken}`,
-    },
+    credentials: "include",
+    headers,
     body: body ? JSON.stringify(body) : undefined,
   });
 

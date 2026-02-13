@@ -10,11 +10,31 @@ export default defineConfig(({ mode }) => {
     server: {
       port: 5173,
       proxy: {
+        "/api": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/api/auth": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
         "/auth/register": {
           target: proxyTarget,
           changeOrigin: true,
         },
         "/auth/login": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/auth/me": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/auth/tokens": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/auth/tokens/revoke": {
           target: proxyTarget,
           changeOrigin: true,
         },

@@ -1,11 +1,40 @@
 import { NavLink, Outlet } from "react-router-dom";
+import { useAuth } from "../lib/auth-context";
 
 export function AuthLayout() {
+  const { isAuthenticated, userEmail, logout, isLoading } = useAuth();
+
+  async function onLogout() {
+    try {
+      await logout();
+    } catch {
+      // no-op
+    }
+  }
+
+  if (isLoading) {
+    return (
+      <div className="page">
+        <div className="panel">Loading...</div>
+      </div>
+    );
+  }
+
   return (
     <div className="page">
       <header className="hero">
-        <h1>Jira MCP Auth Console</h1>
-        <p>React UI for register, login, token handling, and MCP tool checks.</p>
+        <div className="hero-content">
+          <h1>Jira MCP Auth Console</h1>
+          <p>React UI for register, login, token handling, and MCP tool checks.</p>
+        </div>
+        {isAuthenticated && (
+          <div className="user-info">
+            <span className="user-email">{userEmail}</span>
+            <button type="button" className="logout-btn" onClick={() => void onLogout()}>
+              Logout
+            </button>
+          </div>
+        )}
       </header>
 
       <nav className="tabs" aria-label="Auth navigation">
