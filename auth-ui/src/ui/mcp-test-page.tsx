@@ -1,49 +1,21 @@
 import { useEffect, useState } from "react";
 import { getProjects, initializeMcp, listTools } from "../lib/api";
-import {
-  clearSessionId,
-  getJiraBaseUrl,
-  getJiraUsername,
-  getSessionId,
-  setJiraBaseUrl,
-  setJiraUsername,
-  setSessionId,
-} from "../lib/storage";
+import { clearSessionId, getSessionId, setSessionId } from "../lib/storage";
 
 export function McpTestPage() {
   const [token, setToken] = useState("");
-  const [jiraBaseUrl, setJiraBaseUrlState] = useState("");
-  const [jiraUsername, setJiraUsernameState] = useState("");
-  const [jiraApiToken, setJiraApiToken] = useState("");
   const [sessionId, setSessionIdState] = useState("");
   const [output, setOutput] = useState("Ready");
   const [status, setStatus] = useState("");
   const [error, setError] = useState("");
 
   useEffect(() => {
-    setJiraBaseUrlState(getJiraBaseUrl());
-    setJiraUsernameState(getJiraUsername());
     setSessionIdState(getSessionId());
   }, []);
 
-  function handleJiraBaseUrlChange(value: string) {
-    setJiraBaseUrlState(value);
-    setJiraBaseUrl(value);
-  }
-
-  function handleJiraUsernameChange(value: string) {
-    setJiraUsernameState(value);
-    setJiraUsername(value);
-  }
-
   function ensureRequired(): boolean {
     if (!token.trim()) {
-      setError("Missing bearer token. Login first.");
-      return false;
-    }
-
-    if (!jiraBaseUrl.trim() || !jiraUsername.trim() || !jiraApiToken.trim()) {
-      setError("Fill Jira base URL, username, and API token.");
+      setError("Missing workspace token. Create one from the Token page.");
       return false;
     }
 
@@ -56,7 +28,7 @@ export function McpTestPage() {
       return;
     }
 
-    const result = await initializeMcp(token, jiraBaseUrl, jiraUsername, jiraApiToken);
+    const result = await initializeMcp(token);
 
     if (!result.sessionId) {
       throw new Error("Initialize succeeded but no MCP session ID was returned.");
@@ -77,7 +49,7 @@ export function McpTestPage() {
       return;
     }
 
-    const result = await listTools(token, jiraBaseUrl, jiraUsername, jiraApiToken, sessionId);
+    const result = await listTools(token, sessionId);
     setStatus(`Tools listed using session ${result.sessionId}`);
     setOutput(JSON.stringify(result.payload, null, 2));
   }
@@ -91,7 +63,7 @@ export function McpTestPage() {
       return;
     }
 
-    const result = await getProjects(token, jiraBaseUrl, jiraUsername, jiraApiToken, sessionId);
+    const result = await getProjects(token, sessionId);
     setStatus(`Project data fetched using session ${result.sessionId}`);
     setOutput(JSON.stringify(result.payload, null, 2));
   }
@@ -115,11 +87,12 @@ export function McpTestPage() {
     <section>
       <h2>MCP Quick Test</h2>
       <p className="description">
-        Uses your user token plus Jira headers to initialize MCP and execute core tool checks.
+        Use a workspace-scoped token only. Jira credentials are resolved server-side from workspace
+        settings.
       </p>
 
       <div className="form">
-        <label htmlFor="mcp-token">Bearer token</label>
+        <label htmlFor="mcp-token">Workspace bearer token</label>
         <input
           id="mcp-token"
           className="mono"
@@ -128,42 +101,17 @@ export function McpTestPage() {
           placeholder="mcp_..."
         />
 
-        <label htmlFor="jira-base-url">Jira base URL</label>
-        <input
-          id="jira-base-url"
-          value={jiraBaseUrl}
-          onChange={(event) => handleJiraBaseUrlChange(event.target.value)}
-          placeholder="https://your-domain.atlassian.net"
-        />
-
-        <label htmlFor="jira-username">Jira username</label>
-        <input
-          id="jira-username"
-          value={jiraUsername}
-          onChange={(event) => handleJiraUsernameChange(event.target.value)}
-          placeholder="your-email@example.com"
-        />
-
-        <label htmlFor="jira-api-token">Jira API token</label>
-        <input
-          id="jira-api-token"
-          type="password"
-          value={jiraApiToken}
-          onChange={(event) => setJiraApiToken(event.target.value)}
-          placeholder="jira-api-token"
-        />
-
         <label htmlFor="session-id">Session ID</label>
         <input id="session-id" className="mono" value={sessionId} readOnly />
 
         <div className="button-row">
-          <button type="button" onClick={() => runAction(runInitialize)}>
+          <button type="button" onClick={() => void runAction(runInitialize)}>
             Initialize
           </button>
-          <button type="button" onClick={() => runAction(runListTools)}>
+          <button type="button" onClick={() => void runAction(runListTools)}>
             Tools List
           </button>
-          <button type="button" onClick={() => runAction(runGetProjects)}>
+          <button type="button" onClick={() => void runAction(runGetProjects)}>
             Get Projects
           </button>
           <button type="button" className="secondary" onClick={resetSession}>

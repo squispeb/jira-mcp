@@ -1,6 +1,7 @@
 export type LoginResponse = {
   token: string;
   tokenId: string;
+  workspaceId: string | null;
   tokenPrefix: string;
   expiresAt: string | null;
   user: {
@@ -11,6 +12,8 @@ export type LoginResponse = {
 
 export type AuthTokenInfo = {
   id: string;
+  workspaceId: string | null;
+  workspaceName: string | null;
   tokenName: string;
   tokenPrefix: string;
   createdAt: string;
@@ -23,6 +26,16 @@ export type AuthTokenInfo = {
 export type McpResult = {
   sessionId?: string;
   payload: unknown;
+};
+
+export type JiraWorkspaceInfo = {
+  id: string;
+  workspaceName: string;
+  jiraBaseUrl: string;
+  jiraUsername: string;
+  createdAt: string;
+  updatedAt: string;
+  lastUsedAt: string | null;
 };
 
 type HttpMethod = "GET" | "POST";
@@ -57,11 +70,13 @@ export async function createToken(
   tokenName: string,
   expiresInDays: number,
   neverExpires: boolean,
+  workspaceId?: string,
 ) {
   return requestWithOptionalAuth<LoginResponse>(authToken, "POST", "/auth/tokens", {
     tokenName,
     expiresInDays,
     neverExpires,
+    workspaceId,
   });
 }
 
@@ -80,15 +95,46 @@ export async function revokeToken(authToken: string | undefined, tokenId: string
   }>(authToken, "POST", "/auth/tokens/revoke", { tokenId });
 }
 
-export async function initializeMcp(
-  token: string,
+export async function listWorkspaces(authToken?: string) {
+  return requestWithOptionalAuth<{ workspaces: JiraWorkspaceInfo[] }>(
+    authToken,
+    "GET",
+    "/auth/workspaces",
+  );
+}
+
+export async function createWorkspace(
+  workspaceName: string,
   jiraBaseUrl: string,
   jiraUsername: string,
   jiraApiToken: string,
-): Promise<McpResult> {
+  authToken?: string,
+) {
+  return requestWithOptionalAuth<{ workspace: JiraWorkspaceInfo }>(
+    authToken,
+    "POST",
+    "/auth/workspaces",
+    {
+      workspaceName,
+      jiraBaseUrl,
+      jiraUsername,
+      jiraApiToken,
+    },
+  );
+}
+
+export async function deleteWorkspace(workspaceId: string, authToken?: string) {
+  return requestWithOptionalAuth<{
+    workspaceId: string;
+    deleted: boolean;
+    revokedWorkspaceTokens: boolean;
+  }>(authToken, "POST", "/auth/workspaces/delete", { workspaceId });
+}
+
+export async function initializeMcp(token: string): Promise<McpResult> {
   const response = await fetch(withBaseUrl("/mcp"), {
     method: "POST",
-    headers: createMcpHeaders(token, jiraBaseUrl, jiraUsername, jiraApiToken),
+    headers: createMcpHeaders(token),
     body: JSON.stringify({
       jsonrpc: "2.0",
       id: 1,
@@ -112,20 +158,14 @@ export async function initializeMcp(
   };
 }
 
-export async function listTools(
-  token: string,
-  jiraBaseUrl: string,
-  jiraUsername: string,
-  jiraApiToken: string,
-  sessionId: string,
-): Promise<McpResult> {
-  await sendMcp(token, jiraBaseUrl, jiraUsername, jiraApiToken, sessionId, {
+export async function listTools(token: string, sessionId: string): Promise<McpResult> {
+  await sendMcp(token, sessionId, {
     jsonrpc: "2.0",
     method: "notifications/initialized",
     params: {},
   });
 
-  const response = await sendMcp(token, jiraBaseUrl, jiraUsername, jiraApiToken, sessionId, {
+  const response = await sendMcp(token, sessionId, {
     jsonrpc: "2.0",
     id: 2,
     method: "tools/list",
@@ -138,14 +178,8 @@ export async function listTools(
   };
 }
 
-export async function getProjects(
-  token: string,
-  jiraBaseUrl: string,
-  jiraUsername: string,
-  jiraApiToken: string,
-  sessionId: string,
-): Promise<McpResult> {
-  const response = await sendMcp(token, jiraBaseUrl, jiraUsername, jiraApiToken, sessionId, {
+export async function getProjects(token: string, sessionId: string): Promise<McpResult> {
+  const response = await sendMcp(token, sessionId, {
     jsonrpc: "2.0",
     id: 3,
     method: "tools/call",
@@ -161,18 +195,9 @@ export async function getProjects(
   };
 }
 
-function createMcpHeaders(
-  token: string,
-  jiraBaseUrl: string,
-  jiraUsername: string,
-  jiraApiToken: string,
-  sessionId?: string,
-): HeadersInit {
+function createMcpHeaders(token: string, sessionId?: string): HeadersInit {
   const headers: Record<string, string> = {
     Authorization: `Bearer ${token}`,
-    "X-Jira-Base-Url": jiraBaseUrl,
-    "X-Jira-Username": jiraUsername,
-    "X-Jira-Api-Token": jiraApiToken,
     "Content-Type": "application/json",
     Accept: "application/json, text/event-stream",
   };
@@ -185,17 +210,10 @@ function createMcpHeaders(
   return headers;
 }
 
-async function sendMcp(
-  token: string,
-  jiraBaseUrl: string,
-  jiraUsername: string,
-  jiraApiToken: string,
-  sessionId: string,
-  body: unknown,
-): Promise<string> {
+async function sendMcp(token: string, sessionId: string, body: unknown): Promise<string> {
   const response = await fetch(withBaseUrl("/mcp"), {
     method: "POST",
-    headers: createMcpHeaders(token, jiraBaseUrl, jiraUsername, jiraApiToken, sessionId),
+    headers: createMcpHeaders(token, sessionId),
     body: JSON.stringify(body),
   });
 

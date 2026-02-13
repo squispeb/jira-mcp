@@ -38,6 +38,14 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true,
         },
+        "/auth/workspaces": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/auth/workspaces/delete": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
         "/mcp": {
           target: proxyTarget,
           changeOrigin: true,

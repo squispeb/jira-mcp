@@ -1,4 +1,9 @@
-import { D1DatabaseLike, UserAuthContext, WorkerAuthService } from "./auth-service";
+import {
+  D1DatabaseLike,
+  JiraWorkspaceCredentials,
+  UserAuthContext,
+  WorkerAuthService,
+} from "./auth-service";
 import { handleBetterAuthRequest, resolveBetterAuthUserFromRequest } from "./auth/better-auth";
 import { JiraMcpSessionDurableObject } from "./session-do";
 
@@ -20,6 +25,7 @@ type WorkerEnv = {
   MCP_AUTH_TOKENS?: string;
   AUTH_DB?: D1DatabaseLike;
   BETTER_AUTH_SECRET?: string;
+  JIRA_WORKSPACE_ENCRYPTION_KEY?: string;
   AUTH_UI_URL?: string;
   AUTH_UI_ASSETS?: AssetsBindingLike;
   JIRA_MCP_SESSIONS: DurableObjectNamespaceLike;
@@ -48,8 +54,11 @@ export default {
       return withCorsHeaders(request, betterAuthResponse);
     }
 
-    const authService = new WorkerAuthService(env.AUTH_DB, (currentRequest) =>
-      resolveBetterAuthUserFromRequest(currentRequest, env.AUTH_DB, env.BETTER_AUTH_SECRET),
+    const authService = new WorkerAuthService(
+      env.AUTH_DB,
+      (currentRequest) =>
+        resolveBetterAuthUserFromRequest(currentRequest, env.AUTH_DB, env.BETTER_AUTH_SECRET),
+      env.JIRA_WORKSPACE_ENCRYPTION_KEY,
     );
 
     const authResponse = await authService.handleAuthRequest(request);
@@ -87,9 +96,21 @@ export default {
       return withCorsHeaders(request, new Response("Unauthorized", { status: 401 }));
     }
 
-    const requestWithAuthHeaders = attachAuthHeaders(request, authContext);
+    const workspaceCredentials =
+      authContext.type === "user" && authContext.workspaceId
+        ? await authService.getWorkspaceCredentialsForUser(
+            authContext.userId,
+            authContext.workspaceId,
+          )
+        : null;
 
-    const id = env.JIRA_MCP_SESSIONS.idFromName(SESSION_HUB_NAME);
+    if (authContext.type === "user" && authContext.workspaceId && !workspaceCredentials) {
+      return withCorsHeaders(request, new Response("Unauthorized", { status: 401 }));
+    }
+
+    const requestWithAuthHeaders = attachAuthHeaders(request, authContext, workspaceCredentials);
+
+    const id = env.JIRA_MCP_SESSIONS.idFromName(getSessionHubName(authContext));
     const stub = env.JIRA_MCP_SESSIONS.get(id);
     return withCorsHeaders(request, await stub.fetch(requestWithAuthHeaders));
   },
@@ -185,16 +206,37 @@ function getBearerToken(request: Request): string | undefined {
   return match ? match[1].trim() : undefined;
 }
 
-function attachAuthHeaders(request: Request, context: RequestAuthContext): Request {
+function attachAuthHeaders(
+  request: Request,
+  context: RequestAuthContext,
+  workspaceCredentials: JiraWorkspaceCredentials | null,
+): Request {
   const headers = new Headers(request.headers);
 
   if (context.type === "user") {
     headers.set("x-auth-user-id", context.userId);
     headers.set("x-auth-user-email", context.email);
     headers.set("x-auth-token-id", context.tokenId);
+    if (context.workspaceId) {
+      headers.set("x-auth-workspace-id", context.workspaceId);
+    }
+  }
+
+  if (workspaceCredentials) {
+    headers.set("x-jira-base-url", workspaceCredentials.jiraBaseUrl);
+    headers.set("x-jira-username", workspaceCredentials.jiraUsername);
+    headers.set("x-jira-api-token", workspaceCredentials.jiraApiToken);
   }
 
   return new Request(request, { headers });
+}
+
+function getSessionHubName(context: RequestAuthContext): string {
+  if (context.type === "user" && context.workspaceId) {
+    return `jira-workspace:${context.workspaceId}`;
+  }
+
+  return SESSION_HUB_NAME;
 }
 
 function createCorsPreflightResponse(request: Request): Response {

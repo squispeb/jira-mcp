@@ -144,6 +144,15 @@ input {
   font-size: 0.94rem;
 }
 
+select {
+  width: 100%;
+  border: 1px solid var(--border);
+  border-radius: 9px;
+  padding: 9px 10px;
+  font-size: 0.94rem;
+  background: #fff;
+}
+
 .button-row {
   display: flex;
   gap: 8px;

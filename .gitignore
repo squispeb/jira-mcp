@@ -24,6 +24,7 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+.env.*
 
 # IDE and editors
 .idea/
@@ -39,3 +40,5 @@ Thumbs.db
 
 # Cloudflare Workers
 .wrangler/
+
+.agents/

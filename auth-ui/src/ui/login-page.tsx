@@ -1,34 +1,71 @@
-import { FormEvent, useCallback, useEffect, useState } from "react";
-import { AuthTokenInfo, createToken, listTokens, revokeToken } from "../lib/api";
+import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import {
+  AuthTokenInfo,
+  JiraWorkspaceInfo,
+  createToken,
+  createWorkspace,
+  deleteWorkspace,
+  listTokens,
+  listWorkspaces,
+  revokeToken,
+} from "../lib/api";
 import { useAuth } from "../lib/auth-context";
 
 export function LoginPage() {
   const { isAuthenticated, signIn, userEmail, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
-  const [tokenName, setTokenName] = useState("ui-session");
+  const [tokenName, setTokenName] = useState("workspace-token");
   const [expiresInDays, setExpiresInDays] = useState(30);
   const [neverExpires, setNeverExpires] = useState(false);
   const [token, setToken] = useState("");
   const [tokens, setTokens] = useState<AuthTokenInfo[]>([]);
+  const [workspaces, setWorkspaces] = useState<JiraWorkspaceInfo[]>([]);
+  const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
+  const [workspaceName, setWorkspaceName] = useState("");
+  const [workspaceBaseUrl, setWorkspaceBaseUrl] = useState("");
+  const [workspaceUsername, setWorkspaceUsername] = useState("");
+  const [workspaceApiToken, setWorkspaceApiToken] = useState("");
   const [info, setInfo] = useState("");
   const [error, setError] = useState("");
   const [isLoading, setIsLoading] = useState(false);
   const [showToken, setShowToken] = useState(false);
+
+  const selectedWorkspace = useMemo(
+    () => workspaces.find((entry) => entry.id === selectedWorkspaceId) || null,
+    [workspaces, selectedWorkspaceId],
+  );
 
   const refreshTokens = useCallback(async () => {
     const response = await listTokens();
     setTokens(response.tokens);
   }, []);
 
+  const refreshWorkspaces = useCallback(async () => {
+    const response = await listWorkspaces();
+    setWorkspaces(response.workspaces);
+  }, []);
+
   useEffect(() => {
     if (!isAuthenticated) {
       setTokens([]);
+      setWorkspaces([]);
       return;
     }
 
-    void refreshTokens();
-  }, [isAuthenticated, refreshTokens]);
+    void Promise.all([refreshTokens(), refreshWorkspaces()]);
+  }, [isAuthenticated, refreshTokens, refreshWorkspaces]);
+
+  useEffect(() => {
+    if (!selectedWorkspaceId) {
+      return;
+    }
+
+    const exists = workspaces.some((entry) => entry.id === selectedWorkspaceId);
+    if (!exists) {
+      setSelectedWorkspaceId("");
+    }
+  }, [workspaces, selectedWorkspaceId]);
 
   async function onSignIn(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -40,11 +77,55 @@ export function LoginPage() {
       await signIn(email, password);
       setInfo(`Signed in as ${email}`);
       setPassword("");
-      await refreshTokens();
+      await Promise.all([refreshTokens(), refreshWorkspaces()]);
     } catch (err) {
       setError(err instanceof Error ? err.message : "Failed to sign in.");
     } finally {
       setIsLoading(false);
+    }
+  }
+
+  async function onCreateWorkspace() {
+    setError("");
+    setInfo("");
+
+    if (!isAuthenticated) {
+      setError("Sign in first to create workspaces.");
+      return;
+    }
+
+    try {
+      const result = await createWorkspace(
+        workspaceName,
+        workspaceBaseUrl,
+        workspaceUsername,
+        workspaceApiToken,
+      );
+      setWorkspaceApiToken("");
+      setSelectedWorkspaceId(result.workspace.id);
+      setInfo(`Workspace "${result.workspace.workspaceName}" created.`);
+      await refreshWorkspaces();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to create workspace.");
+    }
+  }
+
+  async function onDeleteWorkspace() {
+    if (!selectedWorkspace) {
+      setError("Select a workspace first.");
+      return;
+    }
+
+    setError("");
+    setInfo("");
+
+    try {
+      await deleteWorkspace(selectedWorkspace.id);
+      setSelectedWorkspaceId("");
+      setInfo(`Workspace "${selectedWorkspace.workspaceName}" deleted.`);
+      await Promise.all([refreshWorkspaces(), refreshTokens()]);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Failed to delete workspace.");
     }
   }
 
@@ -57,11 +138,22 @@ export function LoginPage() {
       return;
     }
 
+    if (!selectedWorkspaceId) {
+      setError("Select a workspace before issuing a token.");
+      return;
+    }
+
     try {
-      const response = await createToken(undefined, tokenName, expiresInDays, neverExpires);
+      const response = await createToken(
+        undefined,
+        tokenName,
+        expiresInDays,
+        neverExpires,
+        selectedWorkspaceId,
+      );
       setToken(response.token);
       setInfo(
-        `New token created. ${response.expiresAt ? `Expires ${response.expiresAt}` : "No expiry"}`,
+        `Workspace token created. ${response.expiresAt ? `Expires ${response.expiresAt}` : "No expiry"}`,
       );
       await refreshTokens();
     } catch (err) {
@@ -99,9 +191,9 @@ export function LoginPage() {
 
   return (
     <section>
-      <h2>Session and API Tokens</h2>
+      <h2>Workspaces and API Tokens</h2>
       <p className="description">
-        Sign in with better-auth session cookies, then issue bearer tokens for MCP calls.
+        Create Jira workspaces once, then issue scoped MCP tokens without passing Jira headers.
       </p>
 
       {!isAuthenticated ? (
@@ -134,6 +226,74 @@ export function LoginPage() {
         <>
           <p className="description">Signed in as {userEmail}.</p>
 
+          <h3>Jira Workspaces</h3>
+          <div className="form">
+            <label htmlFor="workspace-name">Workspace name</label>
+            <input
+              id="workspace-name"
+              value={workspaceName}
+              onChange={(event) => setWorkspaceName(event.target.value)}
+              placeholder="Acme Production"
+            />
+
+            <label htmlFor="workspace-url">Jira base URL</label>
+            <input
+              id="workspace-url"
+              value={workspaceBaseUrl}
+              onChange={(event) => setWorkspaceBaseUrl(event.target.value)}
+              placeholder="https://your-domain.atlassian.net"
+            />
+
+            <label htmlFor="workspace-user">Jira username</label>
+            <input
+              id="workspace-user"
+              value={workspaceUsername}
+              onChange={(event) => setWorkspaceUsername(event.target.value)}
+              placeholder="your-email@example.com"
+            />
+
+            <label htmlFor="workspace-token">Jira API token</label>
+            <input
+              id="workspace-token"
+              type="password"
+              value={workspaceApiToken}
+              onChange={(event) => setWorkspaceApiToken(event.target.value)}
+              placeholder="Paste Jira API token"
+            />
+
+            <div className="button-row">
+              <button type="button" onClick={() => void onCreateWorkspace()}>
+                Save Workspace
+              </button>
+              <button type="button" className="secondary" onClick={() => void refreshWorkspaces()}>
+                Refresh Workspaces
+              </button>
+              <button
+                type="button"
+                className="secondary"
+                disabled={!selectedWorkspace}
+                onClick={() => void onDeleteWorkspace()}
+              >
+                Delete Workspace
+              </button>
+            </div>
+          </div>
+
+          <label htmlFor="workspace-select">Selected workspace</label>
+          <select
+            id="workspace-select"
+            value={selectedWorkspaceId}
+            onChange={(event) => setSelectedWorkspaceId(event.target.value)}
+          >
+            <option value="">Choose workspace...</option>
+            {workspaces.map((entry) => (
+              <option key={entry.id} value={entry.id}>
+                {entry.workspaceName} ({entry.jiraUsername})
+              </option>
+            ))}
+          </select>
+
+          <h3>Issue Workspace Token</h3>
           <div className="form">
             <label htmlFor="token-name">Token name</label>
             <input
@@ -165,13 +325,13 @@ export function LoginPage() {
             </label>
 
             <div className="button-row">
-              <button type="button" onClick={onCreateToken}>
-                Create API Token
+              <button type="button" onClick={() => void onCreateToken()}>
+                Create Workspace Token
               </button>
               <button type="button" className="secondary" onClick={() => void refreshTokens()}>
                 Refresh Tokens
               </button>
-              <button type="button" className="secondary" onClick={copyToken}>
+              <button type="button" className="secondary" onClick={() => void copyToken()}>
                 Copy Token
               </button>
             </div>
@@ -205,8 +365,8 @@ export function LoginPage() {
                       <strong>{entry.tokenName}</strong> ({entry.tokenPrefix})
                     </div>
                     <div className="token-meta">
-                      Created: {entry.createdAt} | Expires: {entry.expiresAt || "never"} | Revoked:{" "}
-                      {entry.revokedAt || "no"}
+                      Workspace: {entry.workspaceName || "(unscoped)"} | Created: {entry.createdAt}{" "}
+                      | Expires: {entry.expiresAt || "never"} | Revoked: {entry.revokedAt || "no"}
                     </div>
                     <div className="button-row">
                       <button
