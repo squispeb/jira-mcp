@@ -38,9 +38,7 @@ export function AuthLayout() {
                 <Shield className="h-5 w-5" />
               </div>
               <div>
-                <h1 className="text-xl font-bold tracking-tight">
-                  Jira MCP Auth Console
-                </h1>
+                <h1 className="text-xl font-bold tracking-tight">Jira MCP Auth Console</h1>
                 <p className="text-sm text-primary-foreground/80">
                   Register, manage tokens, and test MCP tools
                 </p>

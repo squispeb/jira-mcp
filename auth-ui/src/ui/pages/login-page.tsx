@@ -40,9 +40,7 @@ export function LoginPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Sign In</CardTitle>
-          <CardDescription>
-            Sign in to manage your Jira workspaces and API tokens.
-          </CardDescription>
+          <CardDescription>Sign in to manage your Jira workspaces and API tokens.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} id="login-form" className="space-y-4">
@@ -84,10 +82,7 @@ export function LoginPage() {
         </CardContent>
         <CardFooter className="justify-center text-sm text-muted-foreground">
           Don&apos;t have an account?{" "}
-          <Link
-            to="/register"
-            className="ml-1 font-medium text-primary hover:underline"
-          >
+          <Link to="/register" className="ml-1 font-medium text-primary hover:underline">
             Create one
           </Link>
         </CardFooter>

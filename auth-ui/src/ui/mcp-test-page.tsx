@@ -11,13 +11,7 @@ import {
 import { getProjects, initializeMcp, listTools } from "@/lib/api";
 import { clearSessionId, getSessionId, setSessionId } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -53,9 +47,7 @@ export function McpTestPage() {
     const result = await initializeMcp(token);
 
     if (!result.sessionId) {
-      throw new Error(
-        "Initialize succeeded but no MCP session ID was returned.",
-      );
+      throw new Error("Initialize succeeded but no MCP session ID was returned.");
     }
 
     setSessionId(result.sessionId);
@@ -132,8 +124,8 @@ export function McpTestPage() {
             <CardTitle className="text-lg">MCP Quick Test</CardTitle>
           </div>
           <CardDescription>
-            Use a workspace-scoped token. Jira credentials are resolved
-            server-side from workspace settings.
+            Use a workspace-scoped token. Jira credentials are resolved server-side from workspace
+            settings.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -173,17 +165,11 @@ export function McpTestPage() {
               <Play className="mr-1.5 h-4 w-4" />
               Initialize
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => void runAction(runListTools)}
-            >
+            <Button variant="secondary" onClick={() => void runAction(runListTools)}>
               <List className="mr-1.5 h-4 w-4" />
               List Tools
             </Button>
-            <Button
-              variant="secondary"
-              onClick={() => void runAction(runGetProjects)}
-            >
+            <Button variant="secondary" onClick={() => void runAction(runGetProjects)}>
               <FolderOpen className="mr-1.5 h-4 w-4" />
               Get Projects
             </Button>

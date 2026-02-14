@@ -1,13 +1,5 @@
 import { NavLink, Outlet, useNavigate } from "react-router-dom";
-import {
-  Zap,
-  Globe,
-  Key,
-  Settings,
-  LogOut,
-  ChevronRight,
-  Menu,
-} from "lucide-react";
+import { Zap, Globe, Key, Settings, LogOut, ChevronRight, Menu } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import {
   DropdownMenu,
@@ -16,13 +8,7 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
-import {
-  Sheet,
-  SheetContent,
-  SheetHeader,
-  SheetTitle,
-  SheetTrigger,
-} from "@/components/ui/sheet";
+import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { Avatar, AvatarFallback } from "@/components/ui/avatar";
 import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/utils";
@@ -63,9 +49,7 @@ export function DashboardLayout() {
   const { userEmail, logout } = useAuth();
   const navigate = useNavigate();
 
-  const initials = userEmail
-    ? userEmail.split("@")[0].slice(0, 2).toUpperCase()
-    : "??";
+  const initials = userEmail ? userEmail.split("@")[0].slice(0, 2).toUpperCase() : "??";
 
   async function onLogout() {
     try {
@@ -123,9 +107,7 @@ export function DashboardLayout() {
                     {initials}
                   </AvatarFallback>
                 </Avatar>
-                <span className="hidden text-sm font-medium sm:inline-block">
-                  {userEmail}
-                </span>
+                <span className="hidden text-sm font-medium sm:inline-block">{userEmail}</span>
               </Button>
             </DropdownMenuTrigger>
             <DropdownMenuContent align="end" className="w-56">
@@ -134,9 +116,7 @@ export function DashboardLayout() {
                 <p className="text-xs text-muted-foreground">Signed in</p>
               </div>
               <DropdownMenuSeparator />
-              <DropdownMenuItem
-                onClick={() => void navigate("/dashboard/settings")}
-              >
+              <DropdownMenuItem onClick={() => void navigate("/dashboard/settings")}>
                 <Settings className="mr-2 h-4 w-4" />
                 Settings
               </DropdownMenuItem>

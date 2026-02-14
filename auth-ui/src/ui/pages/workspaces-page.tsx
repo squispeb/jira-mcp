@@ -1,27 +1,9 @@
 import { FormEvent, useCallback, useEffect, useState } from "react";
-import {
-  Globe,
-  Plus,
-  Trash2,
-  RefreshCw,
-  Loader2,
-  ExternalLink,
-} from "lucide-react";
+import { Globe, Plus, Trash2, RefreshCw, Loader2, ExternalLink } from "lucide-react";
 import { toast } from "sonner";
-import {
-  JiraWorkspaceInfo,
-  createWorkspace,
-  deleteWorkspace,
-  listWorkspaces,
-} from "@/lib/api";
+import { JiraWorkspaceInfo, createWorkspace, deleteWorkspace, listWorkspaces } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import {
@@ -48,9 +30,7 @@ export function WorkspacesPage() {
   const [isLoading, setIsLoading] = useState(true);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
-  const [deleteTarget, setDeleteTarget] = useState<JiraWorkspaceInfo | null>(
-    null,
-  );
+  const [deleteTarget, setDeleteTarget] = useState<JiraWorkspaceInfo | null>(null);
 
   // Form state
   const [name, setName] = useState("");
@@ -63,9 +43,7 @@ export function WorkspacesPage() {
       const response = await listWorkspaces();
       setWorkspaces(response.workspaces);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to load workspaces.",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to load workspaces.");
     } finally {
       setIsLoading(false);
     }
@@ -86,9 +64,7 @@ export function WorkspacesPage() {
       resetForm();
       await refresh();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to create workspace.",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to create workspace.");
     } finally {
       setIsCreating(false);
     }
@@ -103,9 +79,7 @@ export function WorkspacesPage() {
       setDeleteTarget(null);
       await refresh();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to delete workspace.",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to delete workspace.");
     }
   }
 
@@ -150,8 +124,8 @@ export function WorkspacesPage() {
               <DialogHeader>
                 <DialogTitle>Add Jira Workspace</DialogTitle>
                 <DialogDescription>
-                  Connect a Jira Cloud instance. Credentials are stored securely
-                  and never shared with MCP clients.
+                  Connect a Jira Cloud instance. Credentials are stored securely and never shared
+                  with MCP clients.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={onCreate} className="space-y-4">
@@ -200,11 +174,7 @@ export function WorkspacesPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setDialogOpen(false)}
-                  >
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={isCreating}>
@@ -250,9 +220,7 @@ export function WorkspacesPage() {
               {workspaces.length} workspace
               {workspaces.length !== 1 ? "s" : ""}
             </CardTitle>
-            <CardDescription>
-              Your connected Jira Cloud instances.
-            </CardDescription>
+            <CardDescription>Your connected Jira Cloud instances.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -315,19 +283,14 @@ export function WorkspacesPage() {
       )}
 
       {/* Delete confirmation dialog */}
-      <Dialog
-        open={deleteTarget !== null}
-        onOpenChange={(open) => !open && setDeleteTarget(null)}
-      >
+      <Dialog open={deleteTarget !== null} onOpenChange={(open) => !open && setDeleteTarget(null)}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Delete Workspace</DialogTitle>
             <DialogDescription>
               Are you sure you want to delete{" "}
-              <span className="font-medium text-foreground">
-                {deleteTarget?.workspaceName}
-              </span>
-              ? All tokens scoped to this workspace will be revoked.
+              <span className="font-medium text-foreground">{deleteTarget?.workspaceName}</span>?
+              All tokens scoped to this workspace will be revoked.
             </DialogDescription>
           </DialogHeader>
           <DialogFooter>

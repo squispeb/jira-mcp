@@ -30,9 +30,7 @@ export function RegisterPage() {
       await signUp(name.trim() || email, email, password);
       toast.success("Account created! Redirecting to dashboard...");
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to create account.",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to create account.");
     } finally {
       setIsLoading(false);
     }
@@ -43,9 +41,7 @@ export function RegisterPage() {
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
           <CardTitle className="text-2xl">Create Account</CardTitle>
-          <CardDescription>
-            Get started with Jira MCP in seconds.
-          </CardDescription>
+          <CardDescription>Get started with Jira MCP in seconds.</CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} id="register-form" className="space-y-4">
@@ -99,10 +95,7 @@ export function RegisterPage() {
         </CardContent>
         <CardFooter className="justify-center text-sm text-muted-foreground">
           Already have an account?{" "}
-          <Link
-            to="/login"
-            className="ml-1 font-medium text-primary hover:underline"
-          >
+          <Link to="/login" className="ml-1 font-medium text-primary hover:underline">
             Sign in
           </Link>
         </CardFooter>

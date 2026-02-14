@@ -1,13 +1,7 @@
 import { FormEvent, useState } from "react";
 import { UserPlus, Loader2, CheckCircle2, AlertCircle } from "lucide-react";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
@@ -32,9 +26,7 @@ export function RegisterPage() {
       await signUp(name.trim() || email, email, password);
       setMessage(`Registered and signed in as ${email}`);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to register account.",
-      );
+      setError(err instanceof Error ? err.message : "Failed to register account.");
     } finally {
       setIsLoading(false);
     }
@@ -47,9 +39,7 @@ export function RegisterPage() {
           <UserPlus className="h-5 w-5 text-primary" />
           <CardTitle className="text-lg">Create Account</CardTitle>
         </div>
-        <CardDescription>
-          Create a new account in Worker D1 auth storage.
-        </CardDescription>
+        <CardDescription>Create a new account in Worker D1 auth storage.</CardDescription>
       </CardHeader>
       <CardContent>
         <form onSubmit={onSubmit} className="space-y-4">

@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Play,
   List,
@@ -6,34 +6,59 @@ import {
   RotateCcw,
   Terminal,
   Settings as SettingsIcon,
+  Trash2,
+  Loader2,
 } from "lucide-react";
 import { toast } from "sonner";
 import { getProjects, initializeMcp, listTools } from "@/lib/api";
 import { clearSessionId, getSessionId, setSessionId } from "@/lib/storage";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
+import {
+  McpResponseViewer,
+  McpResponsePlaceholder,
+  type McpResponseEntry,
+  type McpResponseMethod,
+} from "@/ui/components/mcp-response-viewer";
+
+let nextId = 1;
 
 export function SettingsPage() {
   const [token, setToken] = useState("");
   const [sessionId, setSessionIdState] = useState("");
-  const [output, setOutput] = useState(
-    "// Ready — paste a token and click Initialize",
-  );
+  const [responses, setResponses] = useState<McpResponseEntry[]>([]);
   const [isRunning, setIsRunning] = useState(false);
+  const responseAreaRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     setSessionIdState(getSessionId());
   }, []);
+
+  function scrollToResponse() {
+    // Small delay to let the DOM render the new response card
+    setTimeout(() => {
+      responseAreaRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+    }, 50);
+  }
+
+  function pushResponse(method: McpResponseMethod, payload: unknown, durationMs: number) {
+    const entry: McpResponseEntry = {
+      id: String(nextId++),
+      method,
+      payload,
+      timestamp: Date.now(),
+      durationMs,
+    };
+    setResponses((prev) => [entry, ...prev]);
+    scrollToResponse();
+  }
 
   function ensureToken(): boolean {
     if (!token.trim()) {
@@ -46,17 +71,31 @@ export function SettingsPage() {
   async function runInitialize() {
     if (!ensureToken()) return;
     setIsRunning(true);
+    const start = performance.now();
 
     try {
       const result = await initializeMcp(token);
+      const elapsed = Math.round(performance.now() - start);
+
       if (!result.sessionId) {
         throw new Error("No MCP-Session-Id returned.");
       }
       setSessionId(result.sessionId);
       setSessionIdState(result.sessionId);
-      setOutput(JSON.stringify(result.payload, null, 2));
+      pushResponse("initialize", result.payload, elapsed);
       toast.success("MCP session initialized.");
     } catch (err) {
+      const elapsed = Math.round(performance.now() - start);
+      pushResponse(
+        "error",
+        {
+          error: {
+            code: -1,
+            message: err instanceof Error ? err.message : "Initialize failed.",
+          },
+        },
+        elapsed,
+      );
       toast.error(err instanceof Error ? err.message : "Initialize failed.");
     } finally {
       setIsRunning(false);
@@ -70,12 +109,25 @@ export function SettingsPage() {
       return;
     }
     setIsRunning(true);
+    const start = performance.now();
 
     try {
       const result = await listTools(token, sessionId);
-      setOutput(JSON.stringify(result.payload, null, 2));
+      const elapsed = Math.round(performance.now() - start);
+      pushResponse("tools/list", result.payload, elapsed);
       toast.success("Tools listed.");
     } catch (err) {
+      const elapsed = Math.round(performance.now() - start);
+      pushResponse(
+        "error",
+        {
+          error: {
+            code: -1,
+            message: err instanceof Error ? err.message : "List tools failed.",
+          },
+        },
+        elapsed,
+      );
       toast.error(err instanceof Error ? err.message : "List tools failed.");
     } finally {
       setIsRunning(false);
@@ -89,12 +141,25 @@ export function SettingsPage() {
       return;
     }
     setIsRunning(true);
+    const start = performance.now();
 
     try {
       const result = await getProjects(token, sessionId);
-      setOutput(JSON.stringify(result.payload, null, 2));
+      const elapsed = Math.round(performance.now() - start);
+      pushResponse("tools/call", result.payload, elapsed);
       toast.success("Projects fetched.");
     } catch (err) {
+      const elapsed = Math.round(performance.now() - start);
+      pushResponse(
+        "error",
+        {
+          error: {
+            code: -1,
+            message: err instanceof Error ? err.message : "Get projects failed.",
+          },
+        },
+        elapsed,
+      );
       toast.error(err instanceof Error ? err.message : "Get projects failed.");
     } finally {
       setIsRunning(false);
@@ -104,8 +169,13 @@ export function SettingsPage() {
   function resetSession() {
     clearSessionId();
     setSessionIdState("");
-    setOutput("// Ready — paste a token and click Initialize");
+    setResponses([]);
     toast.info("Session cleared.");
+  }
+
+  function clearHistory() {
+    setResponses([]);
+    toast.info("Response history cleared.");
   }
 
   return (
@@ -113,9 +183,7 @@ export function SettingsPage() {
       {/* Header */}
       <div>
         <h1 className="text-2xl font-bold tracking-tight">Settings</h1>
-        <p className="text-sm text-muted-foreground">
-          Diagnostics and MCP connection testing.
-        </p>
+        <p className="text-sm text-muted-foreground">Diagnostics and MCP connection testing.</p>
       </div>
 
       {/* MCP Diagnostics */}
@@ -126,10 +194,8 @@ export function SettingsPage() {
             <CardTitle className="text-lg">MCP Connection Test</CardTitle>
           </div>
           <CardDescription>
-            Verify that your workspace tokens work correctly against the MCP
-            endpoint. Paste a token from the{" "}
-            <span className="font-medium text-foreground">API Tokens</span>{" "}
-            page.
+            Verify that your workspace tokens work correctly against the MCP endpoint. Paste a token
+            from the <span className="font-medium text-foreground">API Tokens</span> page.
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
@@ -166,12 +232,12 @@ export function SettingsPage() {
           <Separator />
 
           <div className="flex flex-wrap gap-2">
-            <Button
-              onClick={() => void runInitialize()}
-              disabled={isRunning}
-              size="sm"
-            >
-              <Play className="mr-1.5 h-4 w-4" />
+            <Button onClick={() => void runInitialize()} disabled={isRunning} size="sm">
+              {isRunning ? (
+                <Loader2 className="mr-1.5 h-4 w-4 animate-spin" />
+              ) : (
+                <Play className="mr-1.5 h-4 w-4" />
+              )}
               Initialize
             </Button>
             <Button
@@ -192,6 +258,7 @@ export function SettingsPage() {
               <FolderOpen className="mr-1.5 h-4 w-4" />
               Get Projects
             </Button>
+            <div className="flex-1" />
             <Button variant="outline" size="sm" onClick={resetSession}>
               <RotateCcw className="mr-1.5 h-4 w-4" />
               Clear Session
@@ -200,19 +267,34 @@ export function SettingsPage() {
         </CardContent>
       </Card>
 
-      {/* Output */}
-      <Card>
-        <CardHeader className="pb-3">
-          <CardTitle className="text-sm font-medium text-muted-foreground">
-            Response
-          </CardTitle>
-        </CardHeader>
-        <CardContent>
-          <pre className="max-h-[500px] overflow-auto rounded-lg bg-zinc-950 p-4 font-mono text-xs leading-relaxed text-zinc-300">
-            {output}
-          </pre>
-        </CardContent>
-      </Card>
+      {/* Response history */}
+      <div ref={responseAreaRef} className="space-y-4">
+        {responses.length > 0 && (
+          <div className="flex items-center justify-between">
+            <h2 className="text-sm font-medium text-muted-foreground">
+              Response History
+              <Badge variant="secondary" className="ml-2 text-xs">
+                {responses.length}
+              </Badge>
+            </h2>
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 gap-1 px-2 text-xs text-muted-foreground"
+              onClick={clearHistory}
+            >
+              <Trash2 className="h-3 w-3" />
+              Clear
+            </Button>
+          </div>
+        )}
+
+        {responses.length === 0 ? (
+          <McpResponsePlaceholder />
+        ) : (
+          responses.map((entry) => <McpResponseViewer key={entry.id} entry={entry} />)
+        )}
+      </div>
 
       {/* About */}
       <Card>

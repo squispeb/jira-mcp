@@ -21,13 +21,7 @@ import {
   revokeToken,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Badge } from "@/components/ui/badge";
@@ -73,9 +67,7 @@ export function TokensPage() {
       const response = await listTokens();
       setTokens(response.tokens);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to load tokens.",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to load tokens.");
     }
   }, []);
 
@@ -84,16 +76,12 @@ export function TokensPage() {
       const response = await listWorkspaces();
       setWorkspaces(response.workspaces);
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to load workspaces.",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to load workspaces.");
     }
   }, []);
 
   useEffect(() => {
-    void Promise.all([refreshTokens(), refreshWorkspaces()]).finally(() =>
-      setIsLoading(false),
-    );
+    void Promise.all([refreshTokens(), refreshWorkspaces()]).finally(() => setIsLoading(false));
   }, [refreshTokens, refreshWorkspaces]);
 
   async function onCreate(event: FormEvent<HTMLFormElement>) {
@@ -119,9 +107,7 @@ export function TokensPage() {
       toast.success("Token created successfully.");
       await refreshTokens();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to create token.",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to create token.");
     } finally {
       setIsCreating(false);
     }
@@ -133,9 +119,7 @@ export function TokensPage() {
       toast.success("Token revoked.");
       await refreshTokens();
     } catch (err) {
-      toast.error(
-        err instanceof Error ? err.message : "Failed to revoke token.",
-      );
+      toast.error(err instanceof Error ? err.message : "Failed to revoke token.");
     }
   }
 
@@ -168,11 +152,7 @@ export function TokensPage() {
           </p>
         </div>
         <div className="flex gap-2">
-          <Button
-            variant="outline"
-            size="sm"
-            onClick={() => void refreshTokens()}
-          >
+          <Button variant="outline" size="sm" onClick={() => void refreshTokens()}>
             <RefreshCw className="mr-1.5 h-4 w-4" />
             Refresh
           </Button>
@@ -187,8 +167,8 @@ export function TokensPage() {
               <DialogHeader>
                 <DialogTitle>Create API Token</DialogTitle>
                 <DialogDescription>
-                  Generate a bearer token scoped to a Jira workspace. MCP
-                  clients use this token instead of raw Jira credentials.
+                  Generate a bearer token scoped to a Jira workspace. MCP clients use this token
+                  instead of raw Jira credentials.
                 </DialogDescription>
               </DialogHeader>
               <form onSubmit={onCreate} className="space-y-4">
@@ -228,9 +208,7 @@ export function TokensPage() {
                       max={365}
                       disabled={neverExpires}
                       value={expiresInDays}
-                      onChange={(e) =>
-                        setExpiresInDays(Number(e.target.value || 30))
-                      }
+                      onChange={(e) => setExpiresInDays(Number(e.target.value || 30))}
                     />
                   </div>
                   <div className="flex items-end pb-2">
@@ -238,9 +216,7 @@ export function TokensPage() {
                       <Checkbox
                         id="tk-no-expire"
                         checked={neverExpires}
-                        onCheckedChange={(checked) =>
-                          setNeverExpires(checked === true)
-                        }
+                        onCheckedChange={(checked) => setNeverExpires(checked === true)}
                       />
                       <Label htmlFor="tk-no-expire" className="cursor-pointer">
                         Never expires
@@ -249,11 +225,7 @@ export function TokensPage() {
                   </div>
                 </div>
                 <DialogFooter>
-                  <Button
-                    type="button"
-                    variant="outline"
-                    onClick={() => setDialogOpen(false)}
-                  >
+                  <Button type="button" variant="outline" onClick={() => setDialogOpen(false)}>
                     Cancel
                   </Button>
                   <Button type="submit" disabled={isCreating}>
@@ -289,22 +261,10 @@ export function TokensPage() {
                   readOnly
                   className="flex-1 font-mono text-sm bg-background"
                 />
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => setShowToken(!showToken)}
-                >
-                  {showToken ? (
-                    <EyeOff className="h-4 w-4" />
-                  ) : (
-                    <Eye className="h-4 w-4" />
-                  )}
+                <Button variant="outline" size="icon" onClick={() => setShowToken(!showToken)}>
+                  {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                 </Button>
-                <Button
-                  variant="outline"
-                  size="icon"
-                  onClick={() => void copyToClipboard()}
-                >
+                <Button variant="outline" size="icon" onClick={() => void copyToClipboard()}>
                   <Copy className="h-4 w-4" />
                 </Button>
               </div>
@@ -318,9 +278,7 @@ export function TokensPage() {
         <Card>
           <CardContent className="flex flex-col items-center justify-center py-12 text-center">
             <Key className="mb-4 h-12 w-12 text-muted-foreground/50" />
-            <h3 className="mb-1 text-lg font-semibold">
-              Create a workspace first
-            </h3>
+            <h3 className="mb-1 text-lg font-semibold">Create a workspace first</h3>
             <p className="mb-4 max-w-sm text-sm text-muted-foreground">
               You need at least one Jira workspace before you can issue tokens.
             </p>
@@ -342,12 +300,8 @@ export function TokensPage() {
       {!isLoading && activeTokens.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-lg">
-              Active Tokens ({activeTokens.length})
-            </CardTitle>
-            <CardDescription>
-              Bearer tokens currently valid for MCP authentication.
-            </CardDescription>
+            <CardTitle className="text-lg">Active Tokens ({activeTokens.length})</CardTitle>
+            <CardDescription>Bearer tokens currently valid for MCP authentication.</CardDescription>
           </CardHeader>
           <CardContent className="p-0">
             <Table>
@@ -412,9 +366,7 @@ export function TokensPage() {
           <Separator />
           <Card className="opacity-60">
             <CardHeader>
-              <CardTitle className="text-lg">
-                Revoked Tokens ({revokedTokens.length})
-              </CardTitle>
+              <CardTitle className="text-lg">Revoked Tokens ({revokedTokens.length})</CardTitle>
             </CardHeader>
             <CardContent className="p-0">
               <Table>
@@ -429,17 +381,12 @@ export function TokensPage() {
                 <TableBody>
                   {revokedTokens.map((t) => (
                     <TableRow key={t.id}>
-                      <TableCell className="font-medium line-through">
-                        {t.tokenName}
-                      </TableCell>
+                      <TableCell className="font-medium line-through">{t.tokenName}</TableCell>
                       <TableCell className="text-sm text-muted-foreground">
                         {t.workspaceName || "(unscoped)"}
                       </TableCell>
                       <TableCell>
-                        <Badge
-                          variant="secondary"
-                          className="font-mono text-xs"
-                        >
+                        <Badge variant="secondary" className="font-mono text-xs">
                           {t.tokenPrefix}
                         </Badge>
                       </TableCell>
@@ -464,8 +411,7 @@ export function TokensPage() {
             <Key className="mb-4 h-12 w-12 text-muted-foreground/50" />
             <h3 className="mb-1 text-lg font-semibold">No tokens yet</h3>
             <p className="mb-4 max-w-sm text-sm text-muted-foreground">
-              Create your first API token to start using MCP with your Jira
-              workspace.
+              Create your first API token to start using MCP with your Jira workspace.
             </p>
             <Button onClick={() => setDialogOpen(true)}>
               <Plus className="mr-1.5 h-4 w-4" />

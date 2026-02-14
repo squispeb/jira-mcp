@@ -51,9 +51,8 @@ export function LandingPage() {
               <span className="text-primary">for AI assistants</span>
             </h1>
             <p className="mt-6 text-lg leading-8 text-muted-foreground">
-              Manage Jira workspace tokens for MCP servers. Your credentials
-              stay on the server &mdash; AI clients only get scoped bearer
-              tokens.
+              Manage Jira workspace tokens for MCP servers. Your credentials stay on the server
+              &mdash; AI clients only get scoped bearer tokens.
             </p>
             <div className="mt-10 flex items-center justify-center gap-4">
               {isAuthenticated ? (
@@ -67,11 +66,7 @@ export function LandingPage() {
                     Get Started
                     <ArrowRight className="ml-2 h-4 w-4" />
                   </Button>
-                  <Button
-                    variant="outline"
-                    size="lg"
-                    onClick={() => void navigate("/login")}
-                  >
+                  <Button variant="outline" size="lg" onClick={() => void navigate("/login")}>
                     Sign In
                   </Button>
                 </>
@@ -85,12 +80,9 @@ export function LandingPage() {
       <section className="border-t bg-muted/30 py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="mb-12 text-center">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              How it works
-            </h2>
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">How it works</h2>
             <p className="mt-3 text-muted-foreground">
-              Connect your Jira, issue tokens, and let AI assistants do the
-              rest.
+              Connect your Jira, issue tokens, and let AI assistants do the rest.
             </p>
           </div>
           <div className="grid gap-8 sm:grid-cols-2 lg:grid-cols-4">
@@ -116,9 +108,7 @@ export function LandingPage() {
       <section className="py-20">
         <div className="mx-auto max-w-6xl px-4 sm:px-6 lg:px-8">
           <div className="mx-auto max-w-2xl text-center">
-            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">
-              Ready in 3 steps
-            </h2>
+            <h2 className="text-2xl font-bold tracking-tight sm:text-3xl">Ready in 3 steps</h2>
             <div className="mt-10 space-y-4 text-left">
               <div className="flex gap-4 rounded-lg border p-4">
                 <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-primary text-sm font-bold text-primary-foreground">
@@ -138,8 +128,7 @@ export function LandingPage() {
                 <div>
                   <p className="font-medium">Issue a scoped token</p>
                   <p className="text-sm text-muted-foreground">
-                    Generate a bearer token tied to your workspace with optional
-                    expiry.
+                    Generate a bearer token tied to your workspace with optional expiry.
                   </p>
                 </div>
               </div>
@@ -150,8 +139,8 @@ export function LandingPage() {
                 <div>
                   <p className="font-medium">Configure your MCP client</p>
                   <p className="text-sm text-muted-foreground">
-                    Add the token to Claude, Cursor, or any MCP client. Your
-                    Jira credentials never leave the server.
+                    Add the token to Claude, Cursor, or any MCP client. Your Jira credentials never
+                    leave the server.
                   </p>
                 </div>
               </div>

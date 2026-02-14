@@ -26,32 +26,17 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { Button } from "@/components/ui/button";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Alert, AlertDescription } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Checkbox } from "@/components/ui/checkbox";
 import { Separator } from "@/components/ui/separator";
-import {
-  Tooltip,
-  TooltipContent,
-  TooltipTrigger,
-} from "@/components/ui/tooltip";
+import { Tooltip, TooltipContent, TooltipTrigger } from "@/components/ui/tooltip";
 
 export function LoginPage() {
-  const {
-    isAuthenticated,
-    signIn,
-    userEmail,
-    isLoading: authLoading,
-  } = useAuth();
+  const { isAuthenticated, signIn, userEmail, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [tokenName, setTokenName] = useState("workspace-token");
@@ -145,9 +130,7 @@ export function LoginPage() {
       setInfo(`Workspace "${result.workspace.workspaceName}" created.`);
       await refreshWorkspaces();
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to create workspace.",
-      );
+      setError(err instanceof Error ? err.message : "Failed to create workspace.");
     }
   }
 
@@ -166,9 +149,7 @@ export function LoginPage() {
       setInfo(`Workspace "${selectedWorkspace.workspaceName}" deleted.`);
       await Promise.all([refreshWorkspaces(), refreshTokens()]);
     } catch (err) {
-      setError(
-        err instanceof Error ? err.message : "Failed to delete workspace.",
-      );
+      setError(err instanceof Error ? err.message : "Failed to delete workspace.");
     }
   }
 
@@ -232,9 +213,7 @@ export function LoginPage() {
     return (
       <div className="flex items-center justify-center py-12">
         <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
-        <span className="ml-2 text-sm text-muted-foreground">
-          Loading session...
-        </span>
+        <span className="ml-2 text-sm text-muted-foreground">Loading session...</span>
       </div>
     );
   }
@@ -263,9 +242,7 @@ export function LoginPage() {
               <LogIn className="h-5 w-5 text-primary" />
               <CardTitle className="text-lg">Sign In</CardTitle>
             </div>
-            <CardDescription>
-              Sign in to manage workspaces and API tokens.
-            </CardDescription>
+            <CardDescription>Sign in to manage workspaces and API tokens.</CardDescription>
           </CardHeader>
           <CardContent>
             <form onSubmit={onSignIn} className="space-y-4">
@@ -315,9 +292,8 @@ export function LoginPage() {
                 <CardTitle className="text-lg">Jira Workspaces</CardTitle>
               </div>
               <CardDescription>
-                Signed in as{" "}
-                <span className="font-medium text-foreground">{userEmail}</span>
-                . Create Jira workspaces to scope your MCP tokens.
+                Signed in as <span className="font-medium text-foreground">{userEmail}</span>.
+                Create Jira workspaces to scope your MCP tokens.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
@@ -367,10 +343,7 @@ export function LoginPage() {
                   <Plus className="mr-1.5 h-4 w-4" />
                   Save Workspace
                 </Button>
-                <Button
-                  variant="outline"
-                  onClick={() => void refreshWorkspaces()}
-                >
+                <Button variant="outline" onClick={() => void refreshWorkspaces()}>
                   <RefreshCw className="mr-1.5 h-4 w-4" />
                   Refresh
                 </Button>
@@ -436,9 +409,7 @@ export function LoginPage() {
                     max={365}
                     disabled={neverExpires}
                     value={expiresInDays}
-                    onChange={(e) =>
-                      setExpiresInDays(Number(e.target.value || 30))
-                    }
+                    onChange={(e) => setExpiresInDays(Number(e.target.value || 30))}
                   />
                 </div>
               </div>
@@ -447,9 +418,7 @@ export function LoginPage() {
                 <Checkbox
                   id="never-expires"
                   checked={neverExpires}
-                  onCheckedChange={(checked) =>
-                    setNeverExpires(checked === true)
-                  }
+                  onCheckedChange={(checked) => setNeverExpires(checked === true)}
                 />
                 <Label htmlFor="never-expires" className="cursor-pointer">
                   Never expires
@@ -495,11 +464,7 @@ export function LoginPage() {
                         size="icon"
                         onClick={() => setShowToken(!showToken)}
                       >
-                        {showToken ? (
-                          <EyeOff className="h-4 w-4" />
-                        ) : (
-                          <Eye className="h-4 w-4" />
-                        )}
+                        {showToken ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
                       </Button>
                     </div>
                   </div>
@@ -527,20 +492,13 @@ export function LoginPage() {
                       <div className="min-w-0 flex-1 space-y-1">
                         <div className="flex items-center gap-2">
                           <span className="font-medium">{entry.tokenName}</span>
-                          <Badge
-                            variant="secondary"
-                            className="font-mono text-xs"
-                          >
+                          <Badge variant="secondary" className="font-mono text-xs">
                             {entry.tokenPrefix}
                           </Badge>
-                          {entry.revokedAt && (
-                            <Badge variant="destructive">Revoked</Badge>
-                          )}
+                          {entry.revokedAt && <Badge variant="destructive">Revoked</Badge>}
                         </div>
                         <div className="flex flex-wrap gap-x-4 gap-y-1 text-xs text-muted-foreground">
-                          <span>
-                            Workspace: {entry.workspaceName || "(unscoped)"}
-                          </span>
+                          <span>Workspace: {entry.workspaceName || "(unscoped)"}</span>
                           <span>Created: {entry.createdAt}</span>
                           <span>Expires: {entry.expiresAt || "never"}</span>
                         </div>

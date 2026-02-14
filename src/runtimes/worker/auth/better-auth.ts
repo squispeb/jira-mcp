@@ -21,10 +21,7 @@ type BetterAuthUser = {
   email: string;
 };
 
-const DEFAULT_TRUSTED_ORIGINS = [
-  "http://localhost:5173",
-  "http://127.0.0.1:5173",
-];
+const DEFAULT_TRUSTED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
 const DEPLOYED_TRUSTED_ORIGINS = [
   "https://jira-mcp-server.creax-ai.com",
   "https://jira-context-mcp.contacto-80f.workers.dev",
@@ -47,8 +44,7 @@ export async function handleBetterAuthRequest(
   if (!db || !secret) {
     return Response.json(
       {
-        error:
-          "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
+        error: "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
       },
       { status: 503 },
     );
@@ -84,10 +80,7 @@ export async function resolveBetterAuthUserFromRequest(
   };
 }
 
-async function getAuthInstance(
-  db: D1DatabaseLike,
-  secret: string,
-): Promise<BetterAuthLike> {
+async function getAuthInstance(db: D1DatabaseLike, secret: string): Promise<BetterAuthLike> {
   if (cachedAuthPromise && cachedAuthSecret === secret) {
     return cachedAuthPromise;
   }
@@ -97,10 +90,7 @@ async function getAuthInstance(
   return cachedAuthPromise;
 }
 
-async function createAuthInstance(
-  db: D1DatabaseLike,
-  secret: string,
-): Promise<BetterAuthLike> {
+async function createAuthInstance(db: D1DatabaseLike, secret: string): Promise<BetterAuthLike> {
   const [{ betterAuth }, { drizzleAdapter }, { drizzle }] = await Promise.all([
     import("better-auth"),
     import("better-auth/adapters/drizzle"),
