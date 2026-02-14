@@ -30,7 +30,9 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: |
+          bun install
+          bun add -g bun && bun add --cwd auth-ui
 
       - name: Build auth-ui
         run: bun run build:auth-ui
@@ -71,7 +73,9 @@ jobs:
           bun-version: latest
 
       - name: Install dependencies
-        run: bun install
+        run: |
+          bun install
+          bun add -g bun && bun add --cwd auth-ui
 
       - name: Build auth-ui
         run: bun run build:auth-ui
