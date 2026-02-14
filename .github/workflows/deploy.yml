@@ -1,4 +1,4 @@
-name: Deploy
+name: Deploy to Cloudflare Workers
 
 on:
   push:
@@ -32,7 +32,7 @@ jobs:
       - name: Install dependencies
         run: |
           bun install
-          bun add -g bun && bun add --cwd auth-ui
+          bun install --cwd auth-ui
 
       - name: Build auth-ui
         run: bun run build:auth-ui
@@ -75,7 +75,7 @@ jobs:
       - name: Install dependencies
         run: |
           bun install
-          bun add -g bun && bun add --cwd auth-ui
+          bun install --cwd auth-ui
 
       - name: Build auth-ui
         run: bun run build:auth-ui
