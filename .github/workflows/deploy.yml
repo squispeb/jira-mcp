@@ -3,6 +3,16 @@ name: Deploy
 on:
   push:
     branches: [main, preview]
+  workflow_dispatch:
+    inputs:
+      environment:
+        description: "Environment to deploy"
+        required: true
+        default: "production"
+        type: choice
+        options:
+          - production
+          - preview
 
 permissions:
   contents: read
@@ -10,7 +20,7 @@ permissions:
 
 jobs:
   deploy-preview:
-    if: github.ref == 'refs/heads/preview'
+    if: github.ref == 'refs/heads/preview' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'preview')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -51,7 +61,7 @@ jobs:
             }
 
   deploy-production:
-    if: github.ref == 'refs/heads/main'
+    if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
