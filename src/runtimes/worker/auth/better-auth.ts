@@ -21,8 +21,18 @@ type BetterAuthUser = {
   email: string;
 };
 
-const DEFAULT_TRUSTED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
-const authCache = new WeakMap<object, Promise<BetterAuthLike>>();
+const DEFAULT_TRUSTED_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+];
+const DEPLOYED_TRUSTED_ORIGINS = [
+  "https://jira-mcp-server.creax-ai.com",
+  "https://jira-context-mcp.contacto-80f.workers.dev",
+  "https://jira-context-mcp-preview.contacto-80f.workers.dev",
+];
+
+let cachedAuthPromise: Promise<BetterAuthLike> | null = null;
+let cachedAuthSecret = "";
 
 export async function handleBetterAuthRequest(
   request: Request,
@@ -37,13 +47,14 @@ export async function handleBetterAuthRequest(
   if (!db || !secret) {
     return Response.json(
       {
-        error: "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
+        error:
+          "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
       },
       { status: 503 },
     );
   }
 
-  const auth = await getAuthInstance(db, secret, new URL(request.url).origin);
+  const auth = await getAuthInstance(db, secret);
   return auth.handler(request);
 }
 
@@ -56,7 +67,7 @@ export async function resolveBetterAuthUserFromRequest(
     return null;
   }
 
-  const auth = await getAuthInstance(db, secret, new URL(request.url).origin);
+  const auth = await getAuthInstance(db, secret);
   const session = (await auth.api.getSession({ headers: request.headers })) as {
     user?: { id?: string; email?: string };
   } | null;
@@ -76,23 +87,19 @@ export async function resolveBetterAuthUserFromRequest(
 async function getAuthInstance(
   db: D1DatabaseLike,
   secret: string,
-  requestOrigin: string,
 ): Promise<BetterAuthLike> {
-  const cacheKey = db as unknown as object;
-  const cached = authCache.get(cacheKey);
-  if (cached) {
-    return cached;
+  if (cachedAuthPromise && cachedAuthSecret === secret) {
+    return cachedAuthPromise;
   }
 
-  const authPromise = createAuthInstance(db, secret, requestOrigin);
-  authCache.set(cacheKey, authPromise);
-  return authPromise;
+  cachedAuthSecret = secret;
+  cachedAuthPromise = createAuthInstance(db, secret);
+  return cachedAuthPromise;
 }
 
 async function createAuthInstance(
   db: D1DatabaseLike,
   secret: string,
-  requestOrigin: string,
 ): Promise<BetterAuthLike> {
   const [{ betterAuth }, { drizzleAdapter }, { drizzle }] = await Promise.all([
     import("better-auth"),
@@ -125,7 +132,7 @@ async function createAuthInstance(
       enabled: true,
       autoSignIn: true,
     },
-    trustedOrigins: [...DEFAULT_TRUSTED_ORIGINS, requestOrigin],
+    trustedOrigins: [...DEFAULT_TRUSTED_ORIGINS, ...DEPLOYED_TRUSTED_ORIGINS],
   });
 
   return auth as BetterAuthLike;

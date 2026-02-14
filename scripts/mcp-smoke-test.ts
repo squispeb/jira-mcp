@@ -1,21 +1,24 @@
 type RequiredEnv = {
   JIRA_MCP_URL: string;
-  MCP_AUTH_TOKEN: string;
-  JIRA_BASE_URL: string;
-  JIRA_USERNAME: string;
-  JIRA_API_TOKEN: string;
+  MCP_WORKSPACE_TOKEN: string;
+  JIRA_BASE_URL?: string;
+  JIRA_USERNAME?: string;
+  JIRA_API_TOKEN?: string;
 };
 
 async function main() {
   const env = readRequiredEnv();
-  const headers = {
-    Authorization: `Bearer ${env.MCP_AUTH_TOKEN}`,
-    "X-Jira-Base-Url": env.JIRA_BASE_URL,
-    "X-Jira-Username": env.JIRA_USERNAME,
-    "X-Jira-Api-Token": env.JIRA_API_TOKEN,
+  const headers: Record<string, string> = {
+    Authorization: `Bearer ${env.MCP_WORKSPACE_TOKEN}`,
     "Content-Type": "application/json",
     Accept: "application/json, text/event-stream",
   };
+
+  if (env.JIRA_BASE_URL && env.JIRA_USERNAME && env.JIRA_API_TOKEN) {
+    headers["X-Jira-Base-Url"] = env.JIRA_BASE_URL;
+    headers["X-Jira-Username"] = env.JIRA_USERNAME;
+    headers["X-Jira-Api-Token"] = env.JIRA_API_TOKEN;
+  }
 
   const initializeResponse = await fetch(env.JIRA_MCP_URL, {
     method: "POST",
@@ -98,25 +101,25 @@ async function main() {
 }
 
 function readRequiredEnv(): RequiredEnv {
-  const required = [
-    "JIRA_MCP_URL",
-    "MCP_AUTH_TOKEN",
-    "JIRA_BASE_URL",
-    "JIRA_USERNAME",
-    "JIRA_API_TOKEN",
-  ] as const;
+  const required = ["JIRA_MCP_URL"] as const;
 
   const missing = required.filter((name) => !process.env[name] || !process.env[name]?.trim());
   if (missing.length > 0) {
     throw new Error(`Missing required environment variables: ${missing.join(", ")}`);
   }
 
+  const workspaceToken =
+    process.env.MCP_WORKSPACE_TOKEN?.trim() || process.env.MCP_AUTH_TOKEN?.trim();
+  if (!workspaceToken) {
+    throw new Error("Missing required environment variable: MCP_WORKSPACE_TOKEN");
+  }
+
   return {
     JIRA_MCP_URL: process.env.JIRA_MCP_URL!.trim(),
-    MCP_AUTH_TOKEN: process.env.MCP_AUTH_TOKEN!.trim(),
-    JIRA_BASE_URL: process.env.JIRA_BASE_URL!.trim(),
-    JIRA_USERNAME: process.env.JIRA_USERNAME!.trim(),
-    JIRA_API_TOKEN: process.env.JIRA_API_TOKEN!.trim(),
+    MCP_WORKSPACE_TOKEN: workspaceToken,
+    JIRA_BASE_URL: process.env.JIRA_BASE_URL?.trim(),
+    JIRA_USERNAME: process.env.JIRA_USERNAME?.trim(),
+    JIRA_API_TOKEN: process.env.JIRA_API_TOKEN?.trim(),
   };
 }
 

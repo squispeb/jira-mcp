@@ -121,7 +121,9 @@ export { JiraMcpSessionDurableObject };
 async function maybeServeAuthUi(request: Request, env: WorkerEnv): Promise<Response | null> {
   const url = new URL(request.url);
   const pathname = url.pathname;
-  const isAuthUiPage = pathname === "/auth" || pathname.startsWith("/auth/");
+  const isRootUiPage = ["/", "/sign-up", "/token", "/mcp-test"].includes(pathname);
+  const isLegacyAuthUiPage = pathname === "/auth" || pathname.startsWith("/auth/");
+  const isAuthUiPage = isRootUiPage || isLegacyAuthUiPage;
   const isAuthUiAsset = pathname.startsWith("/assets/") || pathname === "/favicon.ico";
 
   if (!isAuthUiPage && !isAuthUiAsset) {
