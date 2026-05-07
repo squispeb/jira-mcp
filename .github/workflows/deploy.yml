@@ -55,7 +55,7 @@ jobs:
       - name: Upload preview version
         id: upload-version
         run: |
-          UPLOAD_OUTPUT="$(wrangler versions upload \
+          UPLOAD_OUTPUT="$(bunx wrangler versions upload \
             --env preview \
             --name jira-context-mcp-preview \
             --message "preview ${GITHUB_SHA}" \
@@ -66,7 +66,7 @@ jobs:
 
       - name: Deploy preview version
         run: |
-          wrangler versions deploy "${{ steps.upload-version.outputs.version_id }}@100" \
+          bunx wrangler versions deploy "${{ steps.upload-version.outputs.version_id }}@100" \
             --env preview \
             --name jira-context-mcp-preview \
             --yes \
