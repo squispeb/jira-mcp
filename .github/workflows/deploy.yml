@@ -63,6 +63,9 @@ jobs:
           echo "$UPLOAD_OUTPUT"
           VERSION_ID="$(printf '%s' "$UPLOAD_OUTPUT" | node -e 'const fs = require("node:fs"); const input = fs.readFileSync(0, "utf8"); const match = input.match(/Worker Version ID:\s*([0-9a-f-]+)/i); if (!match) { process.exit(1); } process.stdout.write(match[1]);')"
           echo "version_id=${VERSION_ID}" >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
 
       - name: Deploy preview version
         run: |
