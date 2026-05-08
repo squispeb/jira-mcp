@@ -223,7 +223,7 @@ export function TokensPage() {
       setIsSavingTools(true);
       try {
         const tools = editToolsSelection.length > 0 ? editToolsSelection : null;
-        await updateToken(undefined, editToolsTokenId, undefined, tools);
+        await updateToken(undefined, editToolsTokenId, null, tools);
         toast.success(tools ? `Restricted to ${tools.length} tool(s)` : "All tools allowed.");
         setToolsDialogOpen(false);
         setEditToolsTokenId(null);
