@@ -58,15 +58,17 @@ export async function handleBetterAuthRequest(
   if (!db || !secret) {
     return Response.json(
       {
-        error:
-          "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
+        error: "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
       },
       { status: 503 },
     );
   }
 
   if (pathname === "/api/auth/request-password-reset" && request.method === "POST") {
-    const body = (await request.clone().json().catch(() => null)) as { email?: string } | null;
+    const body = (await request
+      .clone()
+      .json()
+      .catch(() => null)) as { email?: string } | null;
     const email = body?.email?.trim().toLowerCase();
     if (!email) {
       return Response.json({ error: "Email is required." }, { status: 400 });
@@ -78,10 +80,7 @@ export async function handleBetterAuthRequest(
       .first<{ id: string }>();
 
     if (!user) {
-      return Response.json(
-        { error: `No account found for ${email}.` },
-        { status: 404 },
-      );
+      return Response.json({ error: `No account found for ${email}.` }, { status: 404 });
     }
   }
 
@@ -120,11 +119,7 @@ async function getAuthInstance(
   secret: string,
   authUiUrl?: string,
 ): Promise<BetterAuthLike> {
-  if (
-    cachedAuthPromise &&
-    cachedAuthSecret === secret &&
-    cachedAuthUiUrl === (authUiUrl || "")
-  ) {
+  if (cachedAuthPromise && cachedAuthSecret === secret && cachedAuthUiUrl === (authUiUrl || "")) {
     return cachedAuthPromise;
   }
 
@@ -139,13 +134,12 @@ async function createAuthInstance(
   secret: string,
   authUiUrl?: string,
 ): Promise<BetterAuthLike> {
-  const [{ betterAuth }, { drizzleAdapter }, { drizzle }, passwordModule] =
-    await Promise.all([
-      import("better-auth"),
-      import("better-auth/adapters/drizzle"),
-      import("drizzle-orm/d1"),
-      import("better-auth/crypto") as Promise<BetterAuthPasswordModule>,
-    ]);
+  const [{ betterAuth }, { drizzleAdapter }, { drizzle }, passwordModule] = await Promise.all([
+    import("better-auth"),
+    import("better-auth/adapters/drizzle"),
+    import("drizzle-orm/d1"),
+    import("better-auth/crypto") as Promise<BetterAuthPasswordModule>,
+  ]);
 
   const drizzleDb = drizzle(db as never, { schema: betterAuthSchema });
 
@@ -184,13 +178,7 @@ async function createAuthInstance(
       },
       password: {
         hash: (password: string) => hashEdgePassword(password, secret),
-        verify: async ({
-          hash,
-          password,
-        }: {
-          hash: string;
-          password: string;
-        }) => {
+        verify: async ({ hash, password }: { hash: string; password: string }) => {
           if (isEdgePasswordHash(hash)) {
             return verifyEdgePasswordHash(hash, password, secret);
           }
@@ -215,17 +203,9 @@ function isEdgePasswordHash(hash: string): boolean {
   return hash.startsWith(`${EDGE_PASSWORD_HASH_SCHEME}$`);
 }
 
-async function hashEdgePassword(
-  password: string,
-  secret: string,
-): Promise<string> {
+async function hashEdgePassword(password: string, secret: string): Promise<string> {
   const salt = randomBase64Url(EDGE_PASSWORD_HASH_SALT_BYTES);
-  const digest = await derivePbkdf2Digest(
-    password,
-    secret,
-    salt,
-    EDGE_PASSWORD_HASH_ITERATIONS,
-  );
+  const digest = await derivePbkdf2Digest(password, secret, salt, EDGE_PASSWORD_HASH_ITERATIONS);
   return `${EDGE_PASSWORD_HASH_SCHEME}$${EDGE_PASSWORD_HASH_ITERATIONS}$${salt}$${digest}`;
 }
 
@@ -249,12 +229,7 @@ async function verifyEdgePasswordHash(
     return false;
   }
 
-  const computedDigest = await derivePbkdf2Digest(
-    password,
-    secret,
-    salt,
-    iterations,
-  );
+  const computedDigest = await derivePbkdf2Digest(password, secret, salt, iterations);
   return timingSafeEqual(computedDigest, expectedDigest);
 }
 
@@ -314,10 +289,7 @@ function base64UrlToBytes(value: string): Uint8Array {
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 function timingSafeEqual(left: string, right: string): boolean {

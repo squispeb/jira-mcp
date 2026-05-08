@@ -207,6 +207,11 @@ export class WorkerAuthService {
       return this.deleteWorkspace(request);
     }
 
+    const workspaceProjectsMatch = url.pathname.match(/^\/auth\/workspaces\/([^/]+)\/projects$/);
+    if (workspaceProjectsMatch && request.method === "GET") {
+      return this.listWorkspaceProjects(request, workspaceProjectsMatch[1]);
+    }
+
     return null;
   }
 
@@ -882,6 +887,45 @@ export class WorkerAuthService {
       deleted: true,
       revokedWorkspaceTokens: true,
     });
+  }
+
+  private async listWorkspaceProjects(request: Request, workspaceId: string): Promise<Response> {
+    const context = await this.requireUserContext(request);
+    if (!context) {
+      return jsonResponse(401, { error: "Unauthorized" });
+    }
+
+    const workspace = await this.getWorkspaceCredentialsForUser(context.userId, workspaceId);
+    if (!workspace) {
+      return jsonResponse(404, { error: "Workspace not found." });
+    }
+
+    try {
+      const auth = btoa(`${workspace.jiraUsername}:${workspace.jiraApiToken}`);
+      const resp = await fetch(`${workspace.jiraBaseUrl}/rest/api/3/project`, {
+        headers: { Authorization: `Basic ${auth}`, Accept: "application/json" },
+      });
+
+      if (!resp.ok) {
+        return jsonResponse(resp.status, {
+          error: `Jira API error: ${resp.statusText}`,
+        });
+      }
+
+      const projects: Array<{ key: string; name: string; id: string }> = await resp.json();
+
+      return jsonResponse(200, {
+        projects: projects.map((p) => ({
+          key: p.key,
+          name: p.name,
+          id: p.id,
+        })),
+      });
+    } catch (err) {
+      return jsonResponse(502, {
+        error: `Failed to fetch projects: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
   }
 
   private async getWorkspaceCryptoKey(): Promise<CryptoKey | null> {

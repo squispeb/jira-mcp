@@ -2,6 +2,7 @@ export type LoginResponse = {
   token: string;
   tokenId: string;
   workspaceId: string | null;
+  defaultProjectKey?: string | null;
   tokenPrefix: string;
   expiresAt: string | null;
   user: {
@@ -14,6 +15,7 @@ export type AuthTokenInfo = {
   id: string;
   workspaceId: string | null;
   workspaceName: string | null;
+  defaultProjectKey?: string | null;
   tokenName: string;
   tokenPrefix: string;
   createdAt: string;
@@ -38,7 +40,7 @@ export type JiraWorkspaceInfo = {
   lastUsedAt: string | null;
 };
 
-type HttpMethod = "GET" | "POST";
+type HttpMethod = "GET" | "POST" | "PUT";
 
 const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || "";
 
@@ -55,6 +57,7 @@ export async function loginUser(
   tokenName: string,
   expiresInDays: number,
   neverExpires: boolean,
+  defaultProjectKey?: string,
 ) {
   return request<LoginResponse>("POST", "/auth/login", {
     email,
@@ -62,6 +65,7 @@ export async function loginUser(
     tokenName,
     expiresInDays,
     neverExpires,
+    defaultProjectKey,
   });
 }
 
@@ -85,12 +89,14 @@ export async function createToken(
   expiresInDays: number,
   neverExpires: boolean,
   workspaceId?: string,
+  defaultProjectKey?: string,
 ) {
   return requestWithOptionalAuth<LoginResponse>(authToken, "POST", "/auth/tokens", {
     tokenName,
     expiresInDays,
     neverExpires,
     workspaceId,
+    defaultProjectKey,
   });
 }
 
@@ -107,6 +113,17 @@ export async function revokeToken(authToken: string | undefined, tokenId: string
     revokedAt: string;
     alreadyRevoked: boolean;
   }>(authToken, "POST", "/auth/tokens/revoke", { tokenId });
+}
+
+export async function updateToken(
+  authToken: string | undefined,
+  tokenId: string,
+  defaultProjectKey: string | null,
+) {
+  return requestWithOptionalAuth<{
+    tokenId: string;
+    defaultProjectKey: string | null;
+  }>(authToken, "PUT", `/auth/tokens/${tokenId}`, { defaultProjectKey });
 }
 
 export async function listWorkspaces(authToken?: string) {
@@ -143,6 +160,12 @@ export async function deleteWorkspace(workspaceId: string, authToken?: string) {
     deleted: boolean;
     revokedWorkspaceTokens: boolean;
   }>(authToken, "POST", "/auth/workspaces/delete", { workspaceId });
+}
+
+export async function listWorkspaceProjects(workspaceId: string, authToken?: string) {
+  return requestWithOptionalAuth<{
+    projects: Array<{ key: string; name: string; id: string }>;
+  }>(authToken, "GET", `/auth/workspaces/${workspaceId}/projects`);
 }
 
 export async function initializeMcp(token: string): Promise<McpResult> {

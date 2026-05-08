@@ -101,7 +101,9 @@ export function LoginPage() {
         <CardFooter className="justify-center text-sm text-muted-foreground">
           <div className="flex flex-col items-center gap-2">
             <Link
-              to={email ? `/forgot-password?email=${encodeURIComponent(email)}` : "/forgot-password"}
+              to={
+                email ? `/forgot-password?email=${encodeURIComponent(email)}` : "/forgot-password"
+              }
               className="font-medium text-primary hover:underline"
             >
               Forgot password?
