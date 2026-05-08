@@ -181,20 +181,33 @@ async function createAuthInstance(
           url,
         });
 
-        if (resendApiKey && user.email) {
+        console.log("[auth] resend config", {
+          hasKey: !!resendApiKey,
+          keyLength: resendApiKey?.length ?? 0,
+        });
+
+        if (!resendApiKey) {
+          console.warn("[auth] RESEND_API_KEY is missing; reset email not sent");
+          return;
+        }
+
+        try {
           const resend = new Resend(resendApiKey);
-          void resend.emails
-            .send({
-              from: "Jira MCP <noreply@creax-ai.com>",
-              to: [user.email],
-              subject: "Reset your password",
-              html: `<p>Click the link below to reset your password:</p><p><a href="${url}">${url}</a></p><p>This link expires in 1 hour.</p>`,
-            })
-            .then((result) => {
-              if (result.error) {
-                console.error("[auth] failed to send reset email", result.error);
-              }
-            });
+          const result = await resend.emails.send({
+            from: "Jira MCP <noreply@creax-ai.com>",
+            to: [user.email],
+            subject: "Reset your password",
+            html: `<p>Click the link below to reset your password:</p><p><a href="${url}">${url}</a></p><p>This link expires in 1 hour.</p>`,
+          });
+
+          if (result.error) {
+            console.error("[auth] failed to send reset email", result.error);
+            return;
+          }
+
+          console.log("[auth] reset email sent", { email: user.email, id: result.data?.id });
+        } catch (error) {
+          console.error("[auth] failed to send reset email", error);
         }
       },
       password: {
