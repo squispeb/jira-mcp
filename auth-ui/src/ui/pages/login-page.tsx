@@ -1,5 +1,5 @@
 import { FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
+import { Link, useLocation } from "react-router-dom";
 import { Loader2 } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -13,11 +13,16 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { getAuthEmail, setAuthEmail } from "@/lib/storage";
 import { useAuth } from "@/lib/auth-context";
 
 export function LoginPage() {
+  const location = useLocation();
   const { signIn } = useAuth();
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => {
+    const queryEmail = new URLSearchParams(location.search).get("email") || "";
+    return queryEmail || getAuthEmail();
+  });
   const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -26,6 +31,7 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
+      setAuthEmail(email);
       await signIn(email, password);
       toast.success("Welcome back!");
     } catch (err) {

@@ -1,5 +1,5 @@
 import { FormEvent, useMemo, useState } from "react";
-import { Link, useLocation, useParams } from "react-router-dom";
+import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
 import { Loader2, ShieldCheck, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -14,14 +14,17 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { resetPassword } from "@/lib/api";
+import { getAuthEmail, setAuthEmail } from "@/lib/storage";
 
 export function ResetPasswordPage() {
   const location = useLocation();
+  const navigate = useNavigate();
   const params = useParams();
   const token = useMemo(() => {
     const queryToken = new URLSearchParams(location.search).get("token") || "";
     return params.token || queryToken;
   }, [location.search, params.token]);
+  const [email] = useState(() => getAuthEmail());
   const [newPassword, setNewPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -37,8 +40,10 @@ export function ResetPasswordPage() {
 
     try {
       await resetPassword(token, newPassword);
+      setAuthEmail(email);
       toast.success("Password updated. You can now sign in.");
       setNewPassword("");
+      void navigate(`/login${email ? `?email=${encodeURIComponent(email)}` : ""}`, { replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to reset password.");
     } finally {
@@ -57,6 +62,9 @@ export function ResetPasswordPage() {
           <CardDescription>Use the token from the reset link to finish recovery.</CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-4 rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
+            We'll send you back to sign in with <span className="font-medium text-foreground">{email || "your email"}</span> filled in.
+          </div>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
               <Label htmlFor="reset-token">Reset token</Label>

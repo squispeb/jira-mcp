@@ -14,9 +14,10 @@ import {
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { requestPasswordReset } from "@/lib/api";
+import { getAuthEmail, setAuthEmail } from "@/lib/storage";
 
 export function ForgotPasswordPage() {
-  const [email, setEmail] = useState("");
+  const [email, setEmail] = useState(() => getAuthEmail());
   const [isLoading, setIsLoading] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -25,6 +26,7 @@ export function ForgotPasswordPage() {
 
     try {
       const redirectTo = getResetRedirectTo();
+      setAuthEmail(email);
       await requestPasswordReset(email, redirectTo);
       toast.success("Reset link requested. Check your email or the worker logs.");
     } catch (err) {
