@@ -41,6 +41,7 @@ zone_name = "creax-ai.com"
 binding = "AUTH_DB"
 database_name = "jira_mcp_auth"
 database_id = "21c65b15-8901-496c-9460-c29da1318b2c"
+migrations_dir = "./migrations/drizzle"
 
 [env.preview]
 name = "jira-context-mcp-preview"

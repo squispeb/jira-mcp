@@ -1,6 +1,6 @@
 import { and, desc, eq, gt, isNull, or } from "drizzle-orm";
 import { drizzle } from "drizzle-orm/d1";
-import { sqliteTable, text } from "drizzle-orm/sqlite-core";
+import { usersTable, apiTokensTable, jiraWorkspacesTable } from "~/db/schema";
 
 type D1PreparedStatementLike = {
   bind(...values: unknown[]): {
@@ -14,40 +14,6 @@ export type D1DatabaseLike = {
   prepare(query: string): D1PreparedStatementLike;
 };
 
-const usersTable = sqliteTable("users", {
-  id: text("id").primaryKey(),
-  email: text("email").notNull(),
-  passwordHash: text("password_hash").notNull(),
-  passwordSalt: text("password_salt").notNull(),
-  createdAt: text("created_at").notNull(),
-});
-
-const apiTokensTable = sqliteTable("api_tokens", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  workspaceId: text("workspace_id"),
-  defaultProjectKey: text("default_project_key"),
-  tokenName: text("token_name").notNull(),
-  tokenPrefix: text("token_prefix").notNull(),
-  tokenHash: text("token_hash").notNull(),
-  createdAt: text("created_at").notNull(),
-  lastUsedAt: text("last_used_at"),
-  expiresAt: text("expires_at"),
-  revokedAt: text("revoked_at"),
-});
-
-const jiraWorkspacesTable = sqliteTable("jira_workspaces", {
-  id: text("id").primaryKey(),
-  userId: text("user_id").notNull(),
-  workspaceName: text("workspace_name").notNull(),
-  jiraBaseUrl: text("jira_base_url").notNull(),
-  jiraUsername: text("jira_username").notNull(),
-  jiraApiTokenCiphertext: text("jira_api_token_ciphertext").notNull(),
-  jiraApiTokenIv: text("jira_api_token_iv").notNull(),
-  createdAt: text("created_at").notNull(),
-  updatedAt: text("updated_at").notNull(),
-  lastUsedAt: text("last_used_at"),
-});
 
 type RegisterPayload = {
   email: string;
@@ -61,6 +27,7 @@ type LoginPayload = {
   expiresInDays?: number;
   neverExpires?: boolean;
   defaultProjectKey?: string;
+  allowedTools?: string[];
 };
 
 type TokenCreatePayload = {
@@ -69,6 +36,7 @@ type TokenCreatePayload = {
   neverExpires?: boolean;
   workspaceId?: string;
   defaultProjectKey?: string;
+  allowedTools?: string[];
 };
 
 type TokenRevokePayload = {
@@ -93,6 +61,7 @@ export type UserAuthContext = {
   tokenId: string;
   workspaceId?: string;
   defaultProjectKey?: string;
+  allowedTools?: string[] | null;
 };
 
 export type JiraWorkspaceCredentials = {
@@ -287,6 +256,7 @@ export class WorkerAuthService {
         userId: apiTokensTable.userId,
         workspaceId: apiTokensTable.workspaceId,
         defaultProjectKey: apiTokensTable.defaultProjectKey,
+        allowedTools: apiTokensTable.allowedTools,
         email: usersTable.email,
       })
       .from(apiTokensTable)
@@ -318,6 +288,7 @@ export class WorkerAuthService {
       tokenId: row.tokenId,
       workspaceId: row.workspaceId || undefined,
       defaultProjectKey: row.defaultProjectKey || undefined,
+      allowedTools: row.allowedTools ? JSON.parse(row.allowedTools) as string[] : null,
     };
   }
 
@@ -430,9 +401,11 @@ export class WorkerAuthService {
 
     const tokenPlainText = `mcp_${randomBase64Url(32)}`;
     const defaultProjectKey = payload.value.defaultProjectKey?.trim() || undefined;
+    const allowedTools = payload.value.allowedTools?.length ? payload.value.allowedTools : null;
     const issuedToken = await this.issueToken(user.id, tokenPlainText, tokenOptions.value, {
       workspaceId: null,
       defaultProjectKey: defaultProjectKey ?? null,
+      allowedTools,
     });
 
     return jsonResponse(200, {
@@ -440,6 +413,7 @@ export class WorkerAuthService {
       tokenId: issuedToken.tokenId,
       workspaceId: issuedToken.workspaceId,
       defaultProjectKey: issuedToken.defaultProjectKey,
+      allowedTools: issuedToken.allowedTools,
       tokenName: issuedToken.tokenName,
       tokenPrefix: issuedToken.tokenPrefix,
       expiresAt: issuedToken.expiresAt,
@@ -484,6 +458,7 @@ export class WorkerAuthService {
         id: apiTokensTable.id,
         workspaceId: apiTokensTable.workspaceId,
         defaultProjectKey: apiTokensTable.defaultProjectKey,
+        allowedTools: apiTokensTable.allowedTools,
         tokenName: apiTokensTable.tokenName,
         tokenPrefix: apiTokensTable.tokenPrefix,
         createdAt: apiTokensTable.createdAt,
@@ -505,6 +480,7 @@ export class WorkerAuthService {
         workspaceId: token.workspaceId,
         workspaceName: token.workspaceName || null,
         defaultProjectKey: token.defaultProjectKey || null,
+        allowedTools: token.allowedTools ? (JSON.parse(token.allowedTools) as string[]) : null,
         tokenName: token.tokenName,
         tokenPrefix: token.tokenPrefix,
         createdAt: token.createdAt,
@@ -541,6 +517,7 @@ export class WorkerAuthService {
 
     const workspaceId = payload.value.workspaceId?.trim() || null;
     const defaultProjectKey = payload.value.defaultProjectKey?.trim() || null;
+    const allowedTools = payload.value.allowedTools?.length ? payload.value.allowedTools : null;
     if (workspaceId) {
       const workspaceRows = await db
         .select({ id: jiraWorkspacesTable.id })
@@ -564,6 +541,7 @@ export class WorkerAuthService {
     const issuedToken = await this.issueToken(context.userId, tokenPlainText, tokenOptions.value, {
       workspaceId,
       defaultProjectKey,
+      allowedTools,
     });
 
     return jsonResponse(201, {
@@ -571,6 +549,7 @@ export class WorkerAuthService {
       tokenId: issuedToken.tokenId,
       workspaceId: issuedToken.workspaceId,
       defaultProjectKey: issuedToken.defaultProjectKey,
+      allowedTools: issuedToken.allowedTools,
       tokenName: issuedToken.tokenName,
       tokenPrefix: issuedToken.tokenPrefix,
       expiresAt: issuedToken.expiresAt,
@@ -651,6 +630,7 @@ export class WorkerAuthService {
 
     const payload = await readJson<{
       defaultProjectKey?: string | null;
+      allowedTools?: string[] | null;
     }>(request);
     if (!payload.ok) {
       return jsonResponse(400, { error: payload.error });
@@ -678,14 +658,22 @@ export class WorkerAuthService {
         ? null
         : payload.value.defaultProjectKey?.trim() || undefined;
 
+    const allowedTools =
+      payload.value.allowedTools === null
+        ? null
+        : payload.value.allowedTools?.length
+          ? JSON.stringify(payload.value.allowedTools)
+          : null;
+
     await db
       .update(apiTokensTable)
-      .set({ defaultProjectKey: defaultProjectKey ?? null })
+      .set({ defaultProjectKey: defaultProjectKey ?? null, allowedTools })
       .where(and(eq(apiTokensTable.id, tokenId), eq(apiTokensTable.userId, context.userId)));
 
     return jsonResponse(200, {
       tokenId,
       defaultProjectKey: defaultProjectKey || null,
+      allowedTools: allowedTools ? (JSON.parse(allowedTools) as string[]) : null,
     });
   }
 
@@ -1026,12 +1014,14 @@ export class WorkerAuthService {
     scope: {
       workspaceId: string | null;
       defaultProjectKey?: string | null;
-    } = { workspaceId: null, defaultProjectKey: null },
+      allowedTools?: string[] | null;
+    } = { workspaceId: null, defaultProjectKey: null, allowedTools: null },
   ): Promise<{
     token: string;
     tokenId: string;
     workspaceId: string | null;
     defaultProjectKey?: string | null;
+    allowedTools?: string[] | null;
     tokenName: string;
     tokenPrefix: string;
     expiresAt: string | null;
@@ -1053,6 +1043,7 @@ export class WorkerAuthService {
       userId,
       workspaceId: scope.workspaceId,
       defaultProjectKey: scope.defaultProjectKey,
+      allowedTools: scope.allowedTools?.length ? JSON.stringify(scope.allowedTools) : null,
       tokenName,
       tokenPrefix,
       tokenHash,
@@ -1067,6 +1058,7 @@ export class WorkerAuthService {
       tokenId,
       workspaceId: scope.workspaceId,
       defaultProjectKey: scope.defaultProjectKey,
+      allowedTools: scope.allowedTools ?? null,
       tokenName,
       tokenPrefix,
       expiresAt,

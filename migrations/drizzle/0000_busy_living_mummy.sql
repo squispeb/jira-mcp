@@ -1,4 +1,4 @@
-CREATE TABLE `auth_accounts` (
+CREATE TABLE IF NOT EXISTS `auth_accounts` (
 	`id` text PRIMARY KEY NOT NULL,
 	`account_id` text NOT NULL,
 	`provider_id` text NOT NULL,
@@ -15,8 +15,8 @@ CREATE TABLE `auth_accounts` (
 	FOREIGN KEY (`user_id`) REFERENCES `auth_users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE INDEX `auth_accounts_userId_idx` ON `auth_accounts` (`user_id`);--> statement-breakpoint
-CREATE TABLE `auth_sessions` (
+CREATE INDEX IF NOT EXISTS `auth_accounts_userId_idx` ON `auth_accounts` (`user_id`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `auth_sessions` (
 	`id` text PRIMARY KEY NOT NULL,
 	`expires_at` integer NOT NULL,
 	`token` text NOT NULL,
@@ -28,9 +28,9 @@ CREATE TABLE `auth_sessions` (
 	FOREIGN KEY (`user_id`) REFERENCES `auth_users`(`id`) ON UPDATE no action ON DELETE cascade
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `auth_sessions_token_unique` ON `auth_sessions` (`token`);--> statement-breakpoint
-CREATE INDEX `auth_sessions_userId_idx` ON `auth_sessions` (`user_id`);--> statement-breakpoint
-CREATE TABLE `auth_users` (
+CREATE UNIQUE INDEX IF NOT EXISTS `auth_sessions_token_unique` ON `auth_sessions` (`token`);--> statement-breakpoint
+CREATE INDEX IF NOT EXISTS `auth_sessions_userId_idx` ON `auth_sessions` (`user_id`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `auth_users` (
 	`id` text PRIMARY KEY NOT NULL,
 	`name` text NOT NULL,
 	`email` text NOT NULL,
@@ -40,8 +40,8 @@ CREATE TABLE `auth_users` (
 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
 );
 --> statement-breakpoint
-CREATE UNIQUE INDEX `auth_users_email_unique` ON `auth_users` (`email`);--> statement-breakpoint
-CREATE TABLE `auth_verifications` (
+CREATE UNIQUE INDEX IF NOT EXISTS `auth_users_email_unique` ON `auth_users` (`email`);--> statement-breakpoint
+CREATE TABLE IF NOT EXISTS `auth_verifications` (
 	`id` text PRIMARY KEY NOT NULL,
 	`identifier` text NOT NULL,
 	`value` text NOT NULL,
@@ -50,4 +50,4 @@ CREATE TABLE `auth_verifications` (
 	`updated_at` integer DEFAULT (cast(unixepoch('subsecond') * 1000 as integer)) NOT NULL
 );
 --> statement-breakpoint
-CREATE INDEX `auth_verifications_identifier_idx` ON `auth_verifications` (`identifier`);
+CREATE INDEX IF NOT EXISTS `auth_verifications_identifier_idx` ON `auth_verifications` (`identifier`);
