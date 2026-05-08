@@ -10,6 +10,8 @@ import { PublicLayout } from "@/ui/layouts/public-layout";
 import { DashboardLayout } from "@/ui/layouts/dashboard-layout";
 import { LandingPage } from "@/ui/pages/landing-page";
 import { LoginPage } from "@/ui/pages/login-page";
+import { ForgotPasswordPage } from "@/ui/pages/forgot-password-page";
+import { ResetPasswordPage } from "@/ui/pages/reset-password-page";
 import { RegisterPage } from "@/ui/pages/register-page";
 import { WorkspacesPage } from "@/ui/pages/workspaces-page";
 import { TokensPage } from "@/ui/pages/tokens-page";
@@ -37,6 +39,18 @@ const router = createBrowserRouter(
               <LoginPage />
             </RedirectIfAuth>
           ),
+        },
+        {
+          path: "forgot-password",
+          element: <ForgotPasswordPage />,
+        },
+        {
+          path: "reset-password",
+          element: <ResetPasswordPage />,
+        },
+        {
+          path: "reset-password/:token",
+          element: <ResetPasswordPage />,
         },
         {
           path: "register",

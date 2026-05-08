@@ -28,6 +28,8 @@ type BetterAuthUser = {
 const DEFAULT_TRUSTED_ORIGINS = [
   "http://localhost:5173",
   "http://127.0.0.1:5173",
+  "http://localhost:8787",
+  "http://127.0.0.1:8787",
 ];
 const DEPLOYED_TRUSTED_ORIGINS = [
   "https://jira-mcp-server.creax-ai.com",
@@ -59,6 +61,26 @@ export async function handleBetterAuthRequest(
       },
       { status: 503 },
     );
+  }
+
+  if (pathname === "/api/auth/request-password-reset" && request.method === "POST") {
+    const body = (await request.clone().json().catch(() => null)) as { email?: string } | null;
+    const email = body?.email?.trim().toLowerCase();
+    if (!email) {
+      return Response.json({ error: "Email is required." }, { status: 400 });
+    }
+
+    const user = await db
+      .prepare("SELECT id FROM auth_users WHERE lower(email) = lower(?) LIMIT 1")
+      .bind(email)
+      .first<{ id: string }>();
+
+    if (!user) {
+      return Response.json(
+        { error: `No account found for ${email}.` },
+        { status: 404 },
+      );
+    }
   }
 
   const auth = await getAuthInstance(db, secret);
@@ -140,6 +162,16 @@ async function createAuthInstance(
     emailAndPassword: {
       enabled: true,
       autoSignIn: true,
+      revokeSessionsOnPasswordReset: true,
+      resetPasswordTokenExpiresIn: 60 * 60,
+      sendResetPassword: async ({ user, url, token }) => {
+        console.log("[auth] password reset requested", {
+          userId: user.id,
+          email: user.email,
+          token,
+          url,
+        });
+      },
       password: {
         hash: (password: string) => hashEdgePassword(password, secret),
         verify: async ({

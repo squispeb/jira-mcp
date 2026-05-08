@@ -1,4 +1,5 @@
 import { FormEvent, useCallback, useEffect, useMemo, useState } from "react";
+import { Link } from "react-router-dom";
 import {
   Key,
   Plus,
@@ -279,6 +280,11 @@ export function LoginPage() {
                   "Sign In"
                 )}
               </Button>
+              <div className="text-center text-sm text-muted-foreground">
+                <Link to="/forgot-password" className="font-medium text-primary hover:underline">
+                  Forgot password?
+                </Link>
+              </div>
             </form>
           </CardContent>
         </Card>

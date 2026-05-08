@@ -1,6 +1,6 @@
 import { FormEvent, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2 } from "lucide-react";
+import { Loader2, Mail, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -13,12 +13,10 @@ import {
 } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
-import { useAuth } from "@/lib/auth-context";
+import { requestPasswordReset } from "@/lib/api";
 
-export function LoginPage() {
-  const { signIn } = useAuth();
+export function ForgotPasswordPage() {
   const [email, setEmail] = useState("");
-  const [password, setPassword] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -26,72 +24,65 @@ export function LoginPage() {
     setIsLoading(true);
 
     try {
-      await signIn(email, password);
-      toast.success("Welcome back!");
+      const redirectTo = getResetRedirectTo();
+      await requestPasswordReset(email, redirectTo);
+      toast.success("Reset link requested. Check your email or the worker logs.");
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : "Invalid credentials.");
+      toast.error(err instanceof Error ? err.message : "Failed to request password reset.");
     } finally {
       setIsLoading(false);
     }
+  }
+
+  function getResetRedirectTo() {
+    const basePath =
+      import.meta.env.VITE_ROUTER_BASENAME || (window.location.pathname.startsWith("/auth") ? "/auth" : "");
+    const uiOrigin = import.meta.env.VITE_AUTH_UI_ORIGIN || window.location.origin;
+    return `${uiOrigin}${basePath}/reset-password`;
   }
 
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-12">
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
-          <CardTitle className="text-2xl">Sign In</CardTitle>
-          <CardDescription>Sign in to manage your Jira workspaces and API tokens.</CardDescription>
+          <div className="mx-auto flex h-10 w-10 items-center justify-center rounded-full bg-primary/10 text-primary">
+            <Mail className="h-5 w-5" />
+          </div>
+          <CardTitle className="text-2xl">Recover Password</CardTitle>
+          <CardDescription>Send a reset link to your email. In development, the worker logs it.</CardDescription>
         </CardHeader>
         <CardContent>
-          <form onSubmit={onSubmit} id="login-form" className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="email">Email</Label>
+              <Label htmlFor="forgot-email">Email</Label>
               <Input
-                id="email"
+                id="forgot-email"
                 type="email"
                 required
                 autoComplete="email"
-                autoFocus
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
                 placeholder="you@example.com"
               />
             </div>
-            <div className="space-y-2">
-              <Label htmlFor="password">Password</Label>
-              <Input
-                id="password"
-                type="password"
-                required
-                autoComplete="current-password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-              />
-            </div>
+
             <Button type="submit" disabled={isLoading} className="w-full">
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                  Signing in...
+                  Sending link...
                 </>
               ) : (
-                "Sign In"
+                "Send Reset Link"
               )}
             </Button>
           </form>
         </CardContent>
         <CardFooter className="justify-center text-sm text-muted-foreground">
-          <div className="flex flex-col items-center gap-2">
-            <Link to="/forgot-password" className="font-medium text-primary hover:underline">
-              Forgot password?
-            </Link>
-            <div>
-              Don&apos;t have an account?{" "}
-              <Link to="/register" className="ml-1 font-medium text-primary hover:underline">
-                Create one
-              </Link>
-            </div>
-          </div>
+          <Link to="/login" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+            <ArrowLeft className="h-3.5 w-3.5" />
+            Back to sign in
+          </Link>
         </CardFooter>
       </Card>
     </div>
