@@ -7,15 +7,20 @@ export class JiraMcpServer {
   private readonly server: McpServer;
   private readonly jiraService: JiraService;
   private readonly defaultProjectKey?: string;
+  private readonly allowedTools: ReadonlySet<string> | null;
 
   constructor(
     jiraUrl: string,
     username: string,
     apiToken: string,
-    options?: { logSink?: JiraLogSink; defaultProjectKey?: string },
+    options?: { logSink?: JiraLogSink; defaultProjectKey?: string; allowedTools?: string[] },
   ) {
     this.jiraService = new JiraService(jiraUrl, username, apiToken, options?.logSink);
     this.defaultProjectKey = options?.defaultProjectKey;
+    this.allowedTools =
+      options?.allowedTools && options.allowedTools.length > 0
+        ? new Set(options.allowedTools)
+        : null;
     this.server = new McpServer({
       name: "Jira MCP Server",
       version: "0.1.0",
@@ -24,7 +29,21 @@ export class JiraMcpServer {
     this.registerTools();
   }
 
+  private isToolAllowed(name: string): boolean {
+    if (!this.allowedTools) return true;
+    return this.allowedTools.has(name);
+  }
+
   private registerTools(): void {
+    // Filter tool registrations to only include allowed tools
+    const originalTool = this.server.tool.bind(this.server);
+    const isAllowed = this.isToolAllowed.bind(this);
+    this.server.tool = ((name: string, ...args: unknown[]) => {
+      if (!isAllowed(name)) return this.server;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      return (originalTool as (...a: unknown[]) => unknown)(name, ...args);
+    }) as typeof this.server.tool;
+
     // Tool to get issue information
     this.server.tool(
       "get_issue",

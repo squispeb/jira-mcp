@@ -34,6 +34,7 @@ type JiraSessionEntry = {
   authTokenId?: string;
   authWorkspaceId?: string;
   defaultProjectKey?: string;
+  allowedTools?: string[];
 };
 
 type EncryptedValue = {
@@ -49,6 +50,7 @@ type StoredSessionRecord = {
   authTokenId?: string;
   authWorkspaceId?: string;
   defaultProjectKey?: string;
+  allowedTools?: string[];
   jiraBaseUrl: EncryptedValue;
   jiraUsername: EncryptedValue;
   jiraApiToken: EncryptedValue;
@@ -97,6 +99,8 @@ export class JiraMcpSessionDurableObject {
       const authTokenId = request.headers.get("x-auth-token-id")?.trim() || undefined;
       const authWorkspaceId = request.headers.get("x-auth-workspace-id")?.trim() || undefined;
       const defaultProjectKey = request.headers.get("x-jira-project-key")?.trim() || undefined;
+      const allowedToolsRaw = request.headers.get("x-allowed-tools")?.trim();
+      const allowedTools = allowedToolsRaw ? allowedToolsRaw.split(",").map((t) => t.trim()).filter(Boolean) : undefined;
       const parsedBody = await parseJsonBody(request);
       if (parsedBody.invalidJson) {
         return createJsonRpcError(400, -32700, "Parse error: request body must be valid JSON");
@@ -185,7 +189,7 @@ export class JiraMcpSessionDurableObject {
         credentials.baseUrl,
         credentials.username,
         credentials.apiToken,
-        { defaultProjectKey },
+        { defaultProjectKey, allowedTools },
       );
 
       const transport = new WebStandardStreamableHTTPServerTransport({
@@ -198,6 +202,7 @@ export class JiraMcpSessionDurableObject {
             authTokenId,
             authWorkspaceId,
             defaultProjectKey,
+            allowedTools,
           };
 
           this.sessions.set(sid, entry);
@@ -206,6 +211,7 @@ export class JiraMcpSessionDurableObject {
             authTokenId,
             authWorkspaceId,
             defaultProjectKey,
+            allowedTools,
           });
         },
         onsessionclosed: async (sid) => {
@@ -257,7 +263,7 @@ export class JiraMcpSessionDurableObject {
       credentials.baseUrl,
       credentials.username,
       credentials.apiToken,
-      { defaultProjectKey: record.defaultProjectKey },
+      { defaultProjectKey: record.defaultProjectKey, allowedTools: record.allowedTools },
     );
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => sessionId,
@@ -287,6 +293,7 @@ export class JiraMcpSessionDurableObject {
       authTokenId: record.authTokenId,
       authWorkspaceId: record.authWorkspaceId,
       defaultProjectKey: record.defaultProjectKey,
+      allowedTools: record.allowedTools,
     };
     this.sessions.set(sessionId, entry);
     return entry;
@@ -301,6 +308,7 @@ export class JiraMcpSessionDurableObject {
       authTokenId?: string;
       authWorkspaceId?: string;
       defaultProjectKey?: string;
+      allowedTools?: string[];
     },
   ): Promise<void> {
     const now = new Date().toISOString();
@@ -312,6 +320,7 @@ export class JiraMcpSessionDurableObject {
       authTokenId: auth.authTokenId,
       authWorkspaceId: auth.authWorkspaceId,
       defaultProjectKey: auth.defaultProjectKey,
+      allowedTools: auth.allowedTools,
       jiraBaseUrl: await encryptSessionValue(credentials.baseUrl, secret),
       jiraUsername: await encryptSessionValue(credentials.username, secret),
       jiraApiToken: await encryptSessionValue(credentials.apiToken, secret),
