@@ -51,6 +51,7 @@ export default {
       request,
       env.AUTH_DB,
       env.BETTER_AUTH_SECRET,
+      env.AUTH_UI_URL,
     );
     if (betterAuthResponse) {
       return withCorsHeaders(request, betterAuthResponse);

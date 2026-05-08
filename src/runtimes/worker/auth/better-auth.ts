@@ -42,11 +42,13 @@ const EDGE_PASSWORD_HASH_SALT_BYTES = 16;
 
 let cachedAuthPromise: Promise<BetterAuthLike> | null = null;
 let cachedAuthSecret = "";
+let cachedAuthUiUrl = "";
 
 export async function handleBetterAuthRequest(
   request: Request,
   db: D1DatabaseLike | undefined,
   secret: string | undefined,
+  authUiUrl?: string,
 ): Promise<Response | null> {
   const pathname = new URL(request.url).pathname;
   if (!pathname.startsWith("/api/auth")) {
@@ -83,7 +85,7 @@ export async function handleBetterAuthRequest(
     }
   }
 
-  const auth = await getAuthInstance(db, secret);
+  const auth = await getAuthInstance(db, secret, authUiUrl);
   return auth.handler(request);
 }
 
@@ -116,19 +118,26 @@ export async function resolveBetterAuthUserFromRequest(
 async function getAuthInstance(
   db: D1DatabaseLike,
   secret: string,
+  authUiUrl?: string,
 ): Promise<BetterAuthLike> {
-  if (cachedAuthPromise && cachedAuthSecret === secret) {
+  if (
+    cachedAuthPromise &&
+    cachedAuthSecret === secret &&
+    cachedAuthUiUrl === (authUiUrl || "")
+  ) {
     return cachedAuthPromise;
   }
 
   cachedAuthSecret = secret;
-  cachedAuthPromise = createAuthInstance(db, secret);
+  cachedAuthUiUrl = authUiUrl || "";
+  cachedAuthPromise = createAuthInstance(db, secret, authUiUrl);
   return cachedAuthPromise;
 }
 
 async function createAuthInstance(
   db: D1DatabaseLike,
   secret: string,
+  authUiUrl?: string,
 ): Promise<BetterAuthLike> {
   const [{ betterAuth }, { drizzleAdapter }, { drizzle }, passwordModule] =
     await Promise.all([
@@ -164,7 +173,8 @@ async function createAuthInstance(
       autoSignIn: true,
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: 60 * 60,
-      sendResetPassword: async ({ user, url, token }) => {
+      sendResetPassword: async ({ user, token }) => {
+        const url = buildResetPasswordUrl(token, authUiUrl);
         console.log("[auth] password reset requested", {
           userId: user.id,
           email: user.email,
@@ -193,6 +203,12 @@ async function createAuthInstance(
   });
 
   return auth as BetterAuthLike;
+}
+
+function buildResetPasswordUrl(token: string, authUiUrl?: string): string {
+  const base = authUiUrl?.trim() || "http://localhost:5173";
+  const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
+  return `${normalizedBase}/reset-password/${encodeURIComponent(token)}`;
 }
 
 function isEdgePasswordHash(hash: string): boolean {
