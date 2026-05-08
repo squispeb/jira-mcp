@@ -45,11 +45,19 @@ export default defineConfig(({ mode }) => {
           target: proxyTarget,
           changeOrigin: true,
         },
+        "^/auth/tokens/[^/]+$": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
         "/auth/workspaces": {
           target: proxyTarget,
           changeOrigin: true,
         },
         "/auth/workspaces/delete": {
+          target: proxyTarget,
+          changeOrigin: true,
+        },
+        "/auth/workspaces/**/projects": {
           target: proxyTarget,
           changeOrigin: true,
         },
