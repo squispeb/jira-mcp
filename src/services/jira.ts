@@ -675,6 +675,7 @@ export class JiraService {
     projectKey: string,
     summary: string,
     description?: string,
+    labels?: string[],
   ): Promise<JiraCreateIssueResponse> {
     const endpoint = `/rest/api/3/issue`;
     const payload: any = {
@@ -693,6 +694,11 @@ export class JiraService {
       payload.fields.description = this.createTextADF(description);
     }
 
+    const normalizedLabels = normalizeLabels(labels);
+    if (normalizedLabels.length > 0) {
+      payload.fields.labels = normalizedLabels;
+    }
+
     const response = await this.request<JiraCreateIssueResponse>(endpoint, "POST", payload);
     await this.writeLog(`jira-create-epic-${response.key}.json`, response);
     return response;
@@ -707,6 +713,7 @@ export class JiraService {
     summary: string,
     parentKey: string,
     description?: string,
+    labels?: string[],
   ): Promise<JiraCreateIssueResponse> {
     const endpoint = `/rest/api/3/issue`;
     const payload: any = {
@@ -726,6 +733,11 @@ export class JiraService {
 
     if (description) {
       payload.fields.description = this.createTextADF(description);
+    }
+
+    const normalizedLabels = normalizeLabels(labels);
+    if (normalizedLabels.length > 0) {
+      payload.fields.labels = normalizedLabels;
     }
 
     const response = await this.request<JiraCreateIssueResponse>(endpoint, "POST", payload);
@@ -750,15 +762,64 @@ export class JiraService {
   /**
    * Update the description of an issue
    */
-  async updateIssueDescription(issueKey: string, description: string): Promise<void> {
+  async updateIssueDescription(
+    issueKey: string,
+    description: string,
+    labels?: string[],
+  ): Promise<void> {
     const content = description.trim();
     if (!content) {
       throw new Error("Description text cannot be empty");
     }
     const endpoint = `/rest/api/3/issue/${issueKey}`;
+    const normalizedLabels = normalizeLabels(labels);
     await this.request<void>(endpoint, "PUT", {
       fields: {
         description: this.createTextADF(content),
+        ...(normalizedLabels.length > 0 ? { labels: normalizedLabels } : {}),
+      },
+    });
+  }
+
+  /**
+   * Add labels to an issue without removing existing labels
+   */
+  async addIssueLabels(issueKey: string, labels: string[]): Promise<void> {
+    const normalizedLabels = normalizeLabels(labels);
+
+    if (normalizedLabels.length === 0) {
+      throw new Error("At least one label is required");
+    }
+
+    const issue = await this.getIssue(issueKey);
+    const currentLabels = issue.fields.labels ?? [];
+    const mergedLabels = Array.from(new Set([...currentLabels, ...normalizedLabels]));
+
+    await this.request<void>(`/rest/api/3/issue/${issueKey}`, "PUT", {
+      fields: {
+        labels: mergedLabels,
+      },
+    });
+  }
+
+  /**
+   * Remove labels from an issue without touching other labels
+   */
+  async removeIssueLabels(issueKey: string, labels: string[]): Promise<void> {
+    const normalizedLabels = normalizeLabels(labels);
+
+    if (normalizedLabels.length === 0) {
+      throw new Error("At least one label is required");
+    }
+
+    const issue = await this.getIssue(issueKey);
+    const currentLabels = issue.fields.labels ?? [];
+    const removalSet = new Set(normalizedLabels);
+    const remainingLabels = currentLabels.filter((label) => !removalSet.has(label));
+
+    await this.request<void>(`/rest/api/3/issue/${issueKey}`, "PUT", {
+      fields: {
+        labels: remainingLabels,
       },
     });
   }
@@ -1157,6 +1218,16 @@ function formatJiraErrorMessage(errorBody: unknown, statusText: string): string 
 
 function isJiraErrorBody(value: unknown): value is JiraErrorBody {
   return !!value && typeof value === "object";
+}
+
+function normalizeLabels(labels?: string[]): string[] {
+  if (!labels) {
+    return [];
+  }
+
+  return Array.from(
+    new Set(labels.map((label) => label.trim()).filter((label) => label.length > 0)),
+  );
 }
 
 function isStringRecord(value: unknown): value is Record<string, string> {
