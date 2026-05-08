@@ -1,5 +1,6 @@
 import { createContext, useContext, type ReactNode } from "react";
 import { authClient } from "./auth-client";
+import { clearAuthEmail, clearSessionId } from "./storage";
 
 type AuthContextType = {
   isAuthenticated: boolean;
@@ -45,6 +46,8 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       throw new Error(result.error.message || "Failed to sign out.");
     }
 
+    clearSessionId();
+    clearAuthEmail();
     await refetch();
   }
 

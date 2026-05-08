@@ -1,6 +1,6 @@
 import { FormEvent, useMemo, useState } from "react";
 import { Link, useLocation, useNavigate, useParams } from "react-router-dom";
-import { Loader2, ShieldCheck, ArrowLeft } from "lucide-react";
+import { Eye, EyeOff, Loader2, ShieldCheck, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
 import {
@@ -26,13 +26,22 @@ export function ResetPasswordPage() {
   }, [location.search, params.token]);
   const [email] = useState(() => getAuthEmail());
   const [newPassword, setNewPassword] = useState("");
+  const [confirmPassword, setConfirmPassword] = useState("");
+  const [showNewPassword, setShowNewPassword] = useState(false);
+  const [showConfirmPassword, setShowConfirmPassword] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
+  const passwordsMatch = newPassword === confirmPassword;
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
     if (!token) {
       toast.error("Missing reset token.");
+      return;
+    }
+
+    if (newPassword !== confirmPassword) {
+      toast.error("Passwords do not match.");
       return;
     }
 
@@ -43,6 +52,7 @@ export function ResetPasswordPage() {
       setAuthEmail(email);
       toast.success("Password updated. You can now sign in.");
       setNewPassword("");
+      setConfirmPassword("");
       void navigate(`/login${email ? `?email=${encodeURIComponent(email)}` : ""}`, { replace: true });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to reset password.");
@@ -63,28 +73,62 @@ export function ResetPasswordPage() {
         </CardHeader>
         <CardContent>
           <div className="mb-4 rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-            We'll send you back to sign in with <span className="font-medium text-foreground">{email || "your email"}</span> filled in.
+            We&apos;ll send you back to sign in with <span className="font-medium text-foreground">{email || "your email"}</span> filled in.
           </div>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
-              <Label htmlFor="reset-token">Reset token</Label>
-              <Input id="reset-token" value={token} readOnly placeholder="Missing token" />
+              <Label htmlFor="new-password">New password</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="new-password"
+                  type={showNewPassword ? "text" : "password"}
+                  required
+                  autoComplete="new-password"
+                  value={newPassword}
+                  onChange={(e) => setNewPassword(e.target.value)}
+                  placeholder="Enter a new password"
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowNewPassword(!showNewPassword)}
+                  aria-label={showNewPassword ? "Hide password" : "Show password"}
+                >
+                  {showNewPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="new-password">New password</Label>
-              <Input
-                id="new-password"
-                type="password"
-                required
-                autoComplete="new-password"
-                value={newPassword}
-                onChange={(e) => setNewPassword(e.target.value)}
-                placeholder="Enter a new password"
-              />
+              <Label htmlFor="confirm-password">Confirm new password</Label>
+              <div className="flex gap-2">
+                <Input
+                  id="confirm-password"
+                  type={showConfirmPassword ? "text" : "password"}
+                  required
+                  autoComplete="new-password"
+                  value={confirmPassword}
+                  onChange={(e) => setConfirmPassword(e.target.value)}
+                  placeholder="Re-enter the new password"
+                  aria-invalid={confirmPassword.length > 0 && !passwordsMatch}
+                />
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="icon"
+                  onClick={() => setShowConfirmPassword(!showConfirmPassword)}
+                  aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
+                >
+                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                </Button>
+              </div>
+              {confirmPassword.length > 0 && !passwordsMatch && (
+                <p className="text-sm text-destructive">Passwords must match.</p>
+              )}
             </div>
 
-            <Button type="submit" disabled={isLoading || !token} className="w-full">
+            <Button type="submit" disabled={isLoading || !token || !passwordsMatch} className="w-full">
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />
