@@ -44,6 +44,7 @@ const EDGE_PASSWORD_HASH_SALT_BYTES = 16;
 let cachedAuthPromise: Promise<BetterAuthLike> | null = null;
 let cachedAuthSecret = "";
 let cachedAuthUiUrl = "";
+let cachedResendApiKey = "";
 
 export async function handleBetterAuthRequest(
   request: Request,
@@ -122,12 +123,13 @@ async function getAuthInstance(
   authUiUrl?: string,
   resendApiKey?: string,
 ): Promise<BetterAuthLike> {
-  if (cachedAuthPromise && cachedAuthSecret === secret && cachedAuthUiUrl === (authUiUrl || "")) {
+  if (cachedAuthPromise && cachedAuthSecret === secret && cachedAuthUiUrl === (authUiUrl || "") && cachedResendApiKey === (resendApiKey || "")) {
     return cachedAuthPromise;
   }
 
   cachedAuthSecret = secret;
   cachedAuthUiUrl = authUiUrl || "";
+  cachedResendApiKey = resendApiKey || "";
   cachedAuthPromise = createAuthInstance(db, secret, authUiUrl, resendApiKey);
   return cachedAuthPromise;
 }
