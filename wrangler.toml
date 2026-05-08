@@ -37,10 +37,15 @@ new_sqlite_classes = ["JiraMcpSessionDurableObject"]
 pattern = "jira-mcp-server.creax-ai.com/*"
 zone_name = "creax-ai.com"
 
+[vars]
+# Set via: wrangler secret put RESEND_API_KEY
+# RESEND_API_KEY = ""
+
 [[d1_databases]]
 binding = "AUTH_DB"
 database_name = "jira_mcp_auth"
 database_id = "21c65b15-8901-496c-9460-c29da1318b2c"
+migrations_dir = "./migrations/drizzle"
 
 [env.preview]
 name = "jira-context-mcp-preview"
@@ -60,6 +65,10 @@ class_name = "JiraMcpSessionDurableObject"
 [[env.preview.migrations]]
 tag = "v1"
 new_sqlite_classes = ["JiraMcpSessionDurableObject"]
+
+[env.preview.vars]
+# Set via: wrangler secret put RESEND_API_KEY -e preview
+# RESEND_API_KEY = ""
 
 [[env.preview.d1_databases]]
 binding = "AUTH_DB"

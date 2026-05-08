@@ -10,15 +10,21 @@ import {
   Loader2,
   Clock,
   CheckCircle2,
+  Pencil,
+  Check,
+  X,
 } from "lucide-react";
 import { toast } from "sonner";
 import {
   AuthTokenInfo,
   JiraWorkspaceInfo,
+  AVAILABLE_TOOLS,
   createToken,
   listTokens,
   listWorkspaces,
+  listWorkspaceProjects,
   revokeToken,
+  updateToken,
 } from "@/lib/api";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -57,6 +63,29 @@ export function TokensPage() {
   const [selectedWorkspaceId, setSelectedWorkspaceId] = useState("");
   const [expiresInDays, setExpiresInDays] = useState(30);
   const [neverExpires, setNeverExpires] = useState(false);
+  const [defaultProjectKey, setDefaultProjectKey] = useState("");
+
+  // Inline edit state
+  const [editingTokenId, setEditingTokenId] = useState<string | null>(null);
+  const [editingProjectKey, setEditingProjectKey] = useState("");
+  const [isSaving, setIsSaving] = useState(false);
+
+  // Workspace projects state
+  const [workspaceProjects, setWorkspaceProjects] = useState<Array<{ key: string; name: string }>>(
+    [],
+  );
+  const [isLoadingProjects, setIsLoadingProjects] = useState(false);
+
+  // Inline edit projects state
+  const [editProjects, setEditProjects] = useState<Array<{ key: string; name: string }>>([]);
+  const [isLoadingEditProjects, setIsLoadingEditProjects] = useState(false);
+
+  // Tools selection state
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [toolsDialogOpen, setToolsDialogOpen] = useState(false);
+  const [editToolsTokenId, setEditToolsTokenId] = useState<string | null>(null);
+  const [editToolsSelection, setEditToolsSelection] = useState<string[]>([]);
+  const [isSavingTools, setIsSavingTools] = useState(false);
 
   // Created token state
   const [createdToken, setCreatedToken] = useState("");
@@ -84,6 +113,24 @@ export function TokensPage() {
     void Promise.all([refreshTokens(), refreshWorkspaces()]).finally(() => setIsLoading(false));
   }, [refreshTokens, refreshWorkspaces]);
 
+  async function onWorkspaceChange(workspaceId: string) {
+    setSelectedWorkspaceId(workspaceId);
+    setDefaultProjectKey("");
+    setWorkspaceProjects([]);
+
+    if (!workspaceId) return;
+
+    setIsLoadingProjects(true);
+    try {
+      const response = await listWorkspaceProjects(workspaceId);
+      setWorkspaceProjects(response.projects);
+    } catch {
+      toast.error("Failed to load projects for this workspace.");
+    } finally {
+      setIsLoadingProjects(false);
+    }
+  }
+
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -101,6 +148,8 @@ export function TokensPage() {
         expiresInDays,
         neverExpires,
         selectedWorkspaceId,
+        defaultProjectKey || undefined,
+        selectedTools.length > 0 ? selectedTools : undefined,
       );
       setCreatedToken(response.token);
       setShowToken(true);
@@ -121,6 +170,79 @@ export function TokensPage() {
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to revoke token.");
     }
+  }
+
+  async function startEdit(token: AuthTokenInfo) {
+    setEditingTokenId(token.id);
+    setEditingProjectKey(token.defaultProjectKey || "");
+    setEditProjects([]);
+
+    if (token.workspaceId) {
+      setIsLoadingEditProjects(true);
+      try {
+        const response = await listWorkspaceProjects(token.workspaceId);
+        setEditProjects(response.projects);
+      } catch {
+        toast.error("Failed to load projects for this workspace.");
+      } finally {
+        setIsLoadingEditProjects(false);
+      }
+    }
+  }
+
+  function cancelEdit() {
+    setEditingTokenId(null);
+    setEditingProjectKey("");
+    setEditProjects([]);
+  }
+
+  async function saveProjectKey(tokenId: string) {
+    const key = editingProjectKey.trim();
+    setIsSaving(true);
+    try {
+      await updateToken(undefined, tokenId, key || null);
+      toast.success(key ? `Default project set to "${key}"` : "Default project cleared.");
+      setEditingTokenId(null);
+      setEditingProjectKey("");
+      await refreshTokens();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : "Failed to update token.");
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  function openToolsEditor(token: AuthTokenInfo) {
+    setEditToolsTokenId(token.id);
+    setEditToolsSelection(token.allowedTools ?? []);
+    setToolsDialogOpen(true);
+  }
+
+  async function saveToolsSelection() {
+    if (editToolsTokenId) {
+      setIsSavingTools(true);
+      try {
+        const tools = editToolsSelection.length > 0 ? editToolsSelection : null;
+        await updateToken(undefined, editToolsTokenId, undefined, tools);
+        toast.success(tools ? `Restricted to ${tools.length} tool(s)` : "All tools allowed.");
+        setToolsDialogOpen(false);
+        setEditToolsTokenId(null);
+        await refreshTokens();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to update tools.");
+      } finally {
+        setIsSavingTools(false);
+      }
+    } else {
+      setSelectedTools(editToolsSelection);
+      setToolsDialogOpen(false);
+    }
+  }
+
+  function toggleToolSelection(name: string) {
+    setEditToolsSelection((prev) =>
+      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name],
+    );
   }
 
   async function copyToClipboard() {
@@ -156,7 +278,18 @@ export function TokensPage() {
             <RefreshCw className="mr-1.5 h-4 w-4" />
             Refresh
           </Button>
-          <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
+          <Dialog
+            open={dialogOpen}
+            onOpenChange={(open) => {
+              setDialogOpen(open);
+              if (open && selectedWorkspaceId) {
+                void onWorkspaceChange(selectedWorkspaceId);
+              }
+              if (!open) {
+                setWorkspaceProjects([]);
+              }
+            }}
+          >
             <DialogTrigger asChild>
               <Button size="sm" disabled={workspaces.length === 0}>
                 <Plus className="mr-1.5 h-4 w-4" />
@@ -178,7 +311,7 @@ export function TokensPage() {
                     id="tk-workspace"
                     required
                     value={selectedWorkspaceId}
-                    onChange={(e) => setSelectedWorkspaceId(e.target.value)}
+                    onChange={(e) => void onWorkspaceChange(e.target.value)}
                     className="flex h-9 w-full items-center rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
                   >
                     <option value="">Select workspace...</option>
@@ -197,6 +330,64 @@ export function TokensPage() {
                     value={tokenName}
                     onChange={(e) => setTokenName(e.target.value)}
                   />
+                </div>
+                <div className="space-y-2">
+                  <Label htmlFor="tk-project">Default Project Key</Label>
+                  {isLoadingProjects ? (
+                    <div className="flex items-center gap-2 h-9 px-3 text-sm text-muted-foreground">
+                      <Loader2 className="h-4 w-4 animate-spin" />
+                      Loading projects...
+                    </div>
+                  ) : workspaceProjects.length > 0 ? (
+                    <select
+                      id="tk-project"
+                      value={defaultProjectKey}
+                      onChange={(e) => setDefaultProjectKey(e.target.value)}
+                      className="flex h-9 w-full items-center rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                    >
+                      <option value="">None (no default)</option>
+                      {workspaceProjects.map((p) => (
+                        <option key={p.key} value={p.key}>
+                          {p.key} — {p.name}
+                        </option>
+                      ))}
+                    </select>
+                  ) : selectedWorkspaceId ? (
+                    <Input
+                      id="tk-project"
+                      placeholder="e.g., PROJ"
+                      value={defaultProjectKey}
+                      onChange={(e) => setDefaultProjectKey(e.target.value.toUpperCase())}
+                    />
+                  ) : null}
+                  <p className="text-xs text-muted-foreground">
+                    Optional. MCP tools will scope to this project when no key is provided.
+                  </p>
+                </div>
+                <div className="space-y-2">
+                  <Label>Tools Access</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditToolsTokenId(null);
+                      setEditToolsSelection(selectedTools.length > 0 ? selectedTools : []);
+                      setToolsDialogOpen(true);
+                    }}
+                    className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <span className="text-muted-foreground">
+                      {selectedTools.length > 0
+                        ? `${selectedTools.length} of ${AVAILABLE_TOOLS.length} tools selected`
+                        : `All ${AVAILABLE_TOOLS.length} tools allowed`}
+                    </span>
+                    <Badge variant="secondary" className="text-xs">
+                      {selectedTools.length > 0 ? "Custom" : "All"}
+                    </Badge>
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    Limit which MCP tools this token can access. Leave all selected for unrestricted
+                    access.
+                  </p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
@@ -309,6 +500,8 @@ export function TokensPage() {
                 <TableRow>
                   <TableHead>Name</TableHead>
                   <TableHead>Workspace</TableHead>
+                  <TableHead>Project</TableHead>
+                  <TableHead>Tools</TableHead>
                   <TableHead>Prefix</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Expires</TableHead>
@@ -326,6 +519,103 @@ export function TokensPage() {
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {t.workspaceName || "(unscoped)"}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      {editingTokenId === t.id ? (
+                        <div
+                          className="flex items-center gap-1"
+                          onClick={(e) => e.stopPropagation()}
+                        >
+                          {isLoadingEditProjects ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : editProjects.length > 0 ? (
+                            <select
+                              autoFocus
+                              value={editingProjectKey}
+                              onChange={(e) => setEditingProjectKey(e.target.value)}
+                              disabled={isSaving}
+                              className="h-7 w-32 rounded border border-input bg-transparent px-1 text-xs font-mono"
+                            >
+                              <option value="">None</option>
+                              {editProjects.map((p) => (
+                                <option key={p.key} value={p.key}>
+                                  {p.key} — {p.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <Input
+                              autoFocus
+                              value={editingProjectKey}
+                              onChange={(e) => setEditingProjectKey(e.target.value.toUpperCase())}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") void saveProjectKey(t.id);
+                                if (e.key === "Escape") cancelEdit();
+                              }}
+                              placeholder="PROJ"
+                              disabled={isSaving}
+                              className="h-7 w-20 font-mono text-xs"
+                            />
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={() => void saveProjectKey(t.id)}
+                            disabled={isSaving}
+                          >
+                            {isSaving ? (
+                              <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                            ) : (
+                              <Check className="h-3.5 w-3.5 text-green-600" />
+                            )}
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-7 w-7 p-0"
+                            onClick={cancelEdit}
+                            disabled={isSaving}
+                          >
+                            <X className="h-3.5 w-3.5 text-destructive" />
+                          </Button>
+                        </div>
+                      ) : (
+                        <button
+                          type="button"
+                          className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted transition-colors"
+                          onClick={() => void startEdit(t)}
+                          title="Set default project key"
+                        >
+                          {t.defaultProjectKey ? (
+                            <Badge variant="outline" className="font-mono text-xs">
+                              {t.defaultProjectKey}
+                            </Badge>
+                          ) : (
+                            <span className="text-xs text-muted-foreground/60 italic">none</span>
+                          )}
+                          <Pencil className="h-3 w-3 text-muted-foreground/60" />
+                        </button>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-sm">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted transition-colors"
+                        onClick={() => openToolsEditor(t)}
+                        title="Configure allowed tools"
+                      >
+                        {t.allowedTools && t.allowedTools.length > 0 ? (
+                          <Badge variant="outline" className="text-xs">
+                            {t.allowedTools.length}/{AVAILABLE_TOOLS.length}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">
+                            All
+                          </Badge>
+                        )}
+                        <Pencil className="h-3 w-3 text-muted-foreground/60" />
+                      </button>
                     </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="font-mono text-xs">
@@ -420,6 +710,55 @@ export function TokensPage() {
           </CardContent>
         </Card>
       )}
+      {/* Tools editor dialog */}
+      <Dialog open={toolsDialogOpen} onOpenChange={setToolsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configure Allowed Tools</DialogTitle>
+            <DialogDescription>
+              {editToolsTokenId
+                ? "Select which MCP tools this token can access."
+                : "Select which tools to grant access to (leave all unchecked for full access)."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 overflow-y-auto space-y-1">
+            {AVAILABLE_TOOLS.map((tool) => (
+              <label
+                key={tool.name}
+                className="flex items-center gap-2 rounded px-2 py-1 hover:bg-muted cursor-pointer"
+              >
+                <Checkbox
+                  checked={editToolsSelection.includes(tool.name)}
+                  onCheckedChange={() => toggleToolSelection(tool.name)}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-mono">{tool.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{tool.description}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setToolsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void saveToolsSelection()}
+              disabled={isSavingTools}
+            >
+              {isSavingTools ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

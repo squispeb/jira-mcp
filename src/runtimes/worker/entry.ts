@@ -29,6 +29,7 @@ type WorkerEnv = {
   JIRA_WORKSPACE_ENCRYPTION_KEY?: string;
   MCP_INTERNAL_SIGNING_SECRET?: string;
   AUTH_UI_URL?: string;
+  RESEND_API_KEY?: string;
   AUTH_UI_ASSETS?: AssetsBindingLike;
   JIRA_MCP_SESSIONS: DurableObjectNamespaceLike;
 };
@@ -37,7 +38,7 @@ type RequestAuthContext = { type: "static"; token: string } | UserAuthContext;
 
 const SESSION_HUB_NAME = "jira-mcp-session-hub";
 const DEFAULT_CORS_HEADERS =
-  "authorization,content-type,x-jira-base-url,x-jira-username,x-jira-api-token,mcp-session-id,mcp-protocol-version";
+  "authorization,content-type,x-jira-base-url,x-jira-username,x-jira-api-token,x-jira-project-key,mcp-session-id,mcp-protocol-version";
 
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
@@ -52,6 +53,7 @@ export default {
       env.AUTH_DB,
       env.BETTER_AUTH_SECRET,
       env.AUTH_UI_URL,
+      env.RESEND_API_KEY,
     );
     if (betterAuthResponse) {
       return withCorsHeaders(request, betterAuthResponse);
@@ -111,6 +113,8 @@ export default {
             workspaceId: authContext.type === "user" ? authContext.workspaceId || null : null,
             userId: authContext.type === "user" ? authContext.userId : null,
             tokenId: authContext.type === "user" ? authContext.tokenId : null,
+            defaultProjectKey:
+              authContext.type === "user" ? authContext.defaultProjectKey || null : null,
           },
           { status: 200 },
         ),
@@ -257,6 +261,12 @@ function attachAuthHeaders(
     headers.set("x-auth-token-id", context.tokenId);
     if (context.workspaceId) {
       headers.set("x-auth-workspace-id", context.workspaceId);
+    }
+    if (context.defaultProjectKey) {
+      headers.set("x-jira-project-key", context.defaultProjectKey);
+    }
+    if (context.allowedTools?.length) {
+      headers.set("x-allowed-tools", context.allowedTools.join(","));
     }
   }
 

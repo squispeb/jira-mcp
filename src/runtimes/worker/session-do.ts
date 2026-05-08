@@ -33,6 +33,8 @@ type JiraSessionEntry = {
   authUserId?: string;
   authTokenId?: string;
   authWorkspaceId?: string;
+  defaultProjectKey?: string;
+  allowedTools?: string[];
 };
 
 type EncryptedValue = {
@@ -47,6 +49,8 @@ type StoredSessionRecord = {
   authUserId?: string;
   authTokenId?: string;
   authWorkspaceId?: string;
+  defaultProjectKey?: string;
+  allowedTools?: string[];
   jiraBaseUrl: EncryptedValue;
   jiraUsername: EncryptedValue;
   jiraApiToken: EncryptedValue;
@@ -94,37 +98,46 @@ export class JiraMcpSessionDurableObject {
       const authUserId = request.headers.get("x-auth-user-id")?.trim() || undefined;
       const authTokenId = request.headers.get("x-auth-token-id")?.trim() || undefined;
       const authWorkspaceId = request.headers.get("x-auth-workspace-id")?.trim() || undefined;
+      const defaultProjectKey = request.headers.get("x-jira-project-key")?.trim() || undefined;
+      const allowedToolsRaw = request.headers.get("x-allowed-tools")?.trim();
+      const allowedTools = allowedToolsRaw
+        ? allowedToolsRaw
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : undefined;
       const parsedBody = await parseJsonBody(request);
       if (parsedBody.invalidJson) {
         return createJsonRpcError(400, -32700, "Parse error: request body must be valid JSON");
       }
 
       const body = parsedBody.value;
-    const sessionId = getSessionIdFromRequest(request);
+      const sessionId = getSessionIdFromRequest(request);
 
-    if (request.method === "GET" && request.headers.get("x-debug-session") === "1") {
-      const shouldReset = request.headers.get("x-debug-reset") === "1";
-      if (shouldReset) {
-        this.sessions.clear();
+      if (request.method === "GET" && request.headers.get("x-debug-session") === "1") {
+        const shouldReset = request.headers.get("x-debug-reset") === "1";
+        if (shouldReset) {
+          this.sessions.clear();
+        }
+
+        const record = sessionId ? await this.readSessionRecord(sessionId) : null;
+        return Response.json(
+          {
+            sessionId: sessionId || null,
+            resetApplied: shouldReset,
+            inMemory: sessionId ? this.sessions.has(sessionId) : false,
+            persisted: !!record,
+            expired: record ? isSessionExpired(record) : false,
+            authUserId: record?.authUserId || null,
+            authTokenId: record?.authTokenId || null,
+            authWorkspaceId: record?.authWorkspaceId || null,
+            defaultProjectKey: record?.defaultProjectKey || null,
+          },
+          { status: 200 },
+        );
       }
 
-      const record = sessionId ? await this.readSessionRecord(sessionId) : null;
-      return Response.json(
-        {
-          sessionId: sessionId || null,
-          resetApplied: shouldReset,
-          inMemory: sessionId ? this.sessions.has(sessionId) : false,
-          persisted: !!record,
-          expired: record ? isSessionExpired(record) : false,
-          authUserId: record?.authUserId || null,
-          authTokenId: record?.authTokenId || null,
-          authWorkspaceId: record?.authWorkspaceId || null,
-        },
-        { status: 200 },
-      );
-    }
-
-    if (sessionId) {
+      if (sessionId) {
         const existingSession = await this.getSessionEntry(sessionId, signingSecret);
         if (!existingSession) {
           return createJsonRpcError(
@@ -181,6 +194,7 @@ export class JiraMcpSessionDurableObject {
         credentials.baseUrl,
         credentials.username,
         credentials.apiToken,
+        { defaultProjectKey, allowedTools },
       );
 
       const transport = new WebStandardStreamableHTTPServerTransport({
@@ -192,6 +206,8 @@ export class JiraMcpSessionDurableObject {
             authUserId,
             authTokenId,
             authWorkspaceId,
+            defaultProjectKey,
+            allowedTools,
           };
 
           this.sessions.set(sid, entry);
@@ -199,6 +215,8 @@ export class JiraMcpSessionDurableObject {
             authUserId,
             authTokenId,
             authWorkspaceId,
+            defaultProjectKey,
+            allowedTools,
           });
         },
         onsessionclosed: async (sid) => {
@@ -246,7 +264,12 @@ export class JiraMcpSessionDurableObject {
       return undefined;
     }
 
-    const server = new JiraMcpServer(credentials.baseUrl, credentials.username, credentials.apiToken);
+    const server = new JiraMcpServer(
+      credentials.baseUrl,
+      credentials.username,
+      credentials.apiToken,
+      { defaultProjectKey: record.defaultProjectKey, allowedTools: record.allowedTools },
+    );
     const transport = new WebStandardStreamableHTTPServerTransport({
       sessionIdGenerator: () => sessionId,
       onsessionclosed: async (sid) => {
@@ -274,6 +297,8 @@ export class JiraMcpSessionDurableObject {
       authUserId: record.authUserId,
       authTokenId: record.authTokenId,
       authWorkspaceId: record.authWorkspaceId,
+      defaultProjectKey: record.defaultProjectKey,
+      allowedTools: record.allowedTools,
     };
     this.sessions.set(sessionId, entry);
     return entry;
@@ -287,6 +312,8 @@ export class JiraMcpSessionDurableObject {
       authUserId?: string;
       authTokenId?: string;
       authWorkspaceId?: string;
+      defaultProjectKey?: string;
+      allowedTools?: string[];
     },
   ): Promise<void> {
     const now = new Date().toISOString();
@@ -297,6 +324,8 @@ export class JiraMcpSessionDurableObject {
       authUserId: auth.authUserId,
       authTokenId: auth.authTokenId,
       authWorkspaceId: auth.authWorkspaceId,
+      defaultProjectKey: auth.defaultProjectKey,
+      allowedTools: auth.allowedTools,
       jiraBaseUrl: await encryptSessionValue(credentials.baseUrl, secret),
       jiraUsername: await encryptSessionValue(credentials.username, secret),
       jiraApiToken: await encryptSessionValue(credentials.apiToken, secret),

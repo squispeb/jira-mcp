@@ -53,7 +53,9 @@ export function ResetPasswordPage() {
       toast.success("Password updated. You can now sign in.");
       setNewPassword("");
       setConfirmPassword("");
-      void navigate(`/login${email ? `?email=${encodeURIComponent(email)}` : ""}`, { replace: true });
+      void navigate(`/login${email ? `?email=${encodeURIComponent(email)}` : ""}`, {
+        replace: true,
+      });
     } catch (err) {
       toast.error(err instanceof Error ? err.message : "Failed to reset password.");
     } finally {
@@ -73,7 +75,8 @@ export function ResetPasswordPage() {
         </CardHeader>
         <CardContent>
           <div className="mb-4 rounded-lg border bg-muted/30 px-3 py-2 text-sm text-muted-foreground">
-            We&apos;ll send you back to sign in with <span className="font-medium text-foreground">{email || "your email"}</span> filled in.
+            We&apos;ll send you back to sign in with{" "}
+            <span className="font-medium text-foreground">{email || "your email"}</span> filled in.
           </div>
           <form onSubmit={onSubmit} className="space-y-4">
             <div className="space-y-2">
@@ -118,9 +121,17 @@ export function ResetPasswordPage() {
                   variant="outline"
                   size="icon"
                   onClick={() => setShowConfirmPassword(!showConfirmPassword)}
-                  aria-label={showConfirmPassword ? "Hide confirmation password" : "Show confirmation password"}
+                  aria-label={
+                    showConfirmPassword
+                      ? "Hide confirmation password"
+                      : "Show confirmation password"
+                  }
                 >
-                  {showConfirmPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  {showConfirmPassword ? (
+                    <EyeOff className="h-4 w-4" />
+                  ) : (
+                    <Eye className="h-4 w-4" />
+                  )}
                 </Button>
               </div>
               {confirmPassword.length > 0 && !passwordsMatch && (
@@ -128,7 +139,11 @@ export function ResetPasswordPage() {
               )}
             </div>
 
-            <Button type="submit" disabled={isLoading || !token || !passwordsMatch} className="w-full">
+            <Button
+              type="submit"
+              disabled={isLoading || !token || !passwordsMatch}
+              className="w-full"
+            >
               {isLoading ? (
                 <>
                   <Loader2 className="mr-2 h-4 w-4 animate-spin" />

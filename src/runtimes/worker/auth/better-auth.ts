@@ -1,5 +1,6 @@
 import type { D1DatabaseLike } from "../auth-service";
 import * as generatedSchema from "./schema.generated";
+import { Resend } from "resend";
 
 const betterAuthSchema = {
   ...generatedSchema,
@@ -43,12 +44,14 @@ const EDGE_PASSWORD_HASH_SALT_BYTES = 16;
 let cachedAuthPromise: Promise<BetterAuthLike> | null = null;
 let cachedAuthSecret = "";
 let cachedAuthUiUrl = "";
+let cachedResendApiKey = "";
 
 export async function handleBetterAuthRequest(
   request: Request,
   db: D1DatabaseLike | undefined,
   secret: string | undefined,
   authUiUrl?: string,
+  resendApiKey?: string,
 ): Promise<Response | null> {
   const pathname = new URL(request.url).pathname;
   if (!pathname.startsWith("/api/auth")) {
@@ -58,15 +61,17 @@ export async function handleBetterAuthRequest(
   if (!db || !secret) {
     return Response.json(
       {
-        error:
-          "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
+        error: "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
       },
       { status: 503 },
     );
   }
 
   if (pathname === "/api/auth/request-password-reset" && request.method === "POST") {
-    const body = (await request.clone().json().catch(() => null)) as { email?: string } | null;
+    const body = (await request
+      .clone()
+      .json()
+      .catch(() => null)) as { email?: string } | null;
     const email = body?.email?.trim().toLowerCase();
     if (!email) {
       return Response.json({ error: "Email is required." }, { status: 400 });
@@ -78,14 +83,11 @@ export async function handleBetterAuthRequest(
       .first<{ id: string }>();
 
     if (!user) {
-      return Response.json(
-        { error: `No account found for ${email}.` },
-        { status: 404 },
-      );
+      return Response.json({ error: `No account found for ${email}.` }, { status: 404 });
     }
   }
 
-  const auth = await getAuthInstance(db, secret, authUiUrl);
+  const auth = await getAuthInstance(db, secret, authUiUrl, resendApiKey);
   return auth.handler(request);
 }
 
@@ -119,18 +121,16 @@ async function getAuthInstance(
   db: D1DatabaseLike,
   secret: string,
   authUiUrl?: string,
+  resendApiKey?: string,
 ): Promise<BetterAuthLike> {
-  if (
-    cachedAuthPromise &&
-    cachedAuthSecret === secret &&
-    cachedAuthUiUrl === (authUiUrl || "")
-  ) {
+  if (cachedAuthPromise && cachedAuthSecret === secret && cachedAuthUiUrl === (authUiUrl || "") && cachedResendApiKey === (resendApiKey || "")) {
     return cachedAuthPromise;
   }
 
   cachedAuthSecret = secret;
   cachedAuthUiUrl = authUiUrl || "";
-  cachedAuthPromise = createAuthInstance(db, secret, authUiUrl);
+  cachedResendApiKey = resendApiKey || "";
+  cachedAuthPromise = createAuthInstance(db, secret, authUiUrl, resendApiKey);
   return cachedAuthPromise;
 }
 
@@ -138,14 +138,14 @@ async function createAuthInstance(
   db: D1DatabaseLike,
   secret: string,
   authUiUrl?: string,
+  resendApiKey?: string,
 ): Promise<BetterAuthLike> {
-  const [{ betterAuth }, { drizzleAdapter }, { drizzle }, passwordModule] =
-    await Promise.all([
-      import("better-auth"),
-      import("better-auth/adapters/drizzle"),
-      import("drizzle-orm/d1"),
-      import("better-auth/crypto") as Promise<BetterAuthPasswordModule>,
-    ]);
+  const [{ betterAuth }, { drizzleAdapter }, { drizzle }, passwordModule] = await Promise.all([
+    import("better-auth"),
+    import("better-auth/adapters/drizzle"),
+    import("drizzle-orm/d1"),
+    import("better-auth/crypto") as Promise<BetterAuthPasswordModule>,
+  ]);
 
   const drizzleDb = drizzle(db as never, { schema: betterAuthSchema });
 
@@ -178,19 +178,41 @@ async function createAuthInstance(
         console.log("[auth] password reset requested", {
           userId: user.id,
           email: user.email,
-          token,
           url,
         });
+
+        console.log("[auth] resend config", {
+          hasKey: !!resendApiKey,
+          keyLength: resendApiKey?.length ?? 0,
+        });
+
+        if (!resendApiKey) {
+          console.warn("[auth] RESEND_API_KEY is missing; reset email not sent");
+          return;
+        }
+
+        try {
+          const resend = new Resend(resendApiKey);
+          const result = await resend.emails.send({
+            from: "Jira MCP <noreply@creax-ai.com>",
+            to: [user.email],
+            subject: "Reset your password",
+            html: `<p>Click the link below to reset your password:</p><p><a href="${url}">${url}</a></p><p>This link expires in 1 hour.</p>`,
+          });
+
+          if (result.error) {
+            console.error("[auth] failed to send reset email", result.error);
+            return;
+          }
+
+          console.log("[auth] reset email sent", { email: user.email, id: result.data?.id });
+        } catch (error) {
+          console.error("[auth] failed to send reset email", error);
+        }
       },
       password: {
         hash: (password: string) => hashEdgePassword(password, secret),
-        verify: async ({
-          hash,
-          password,
-        }: {
-          hash: string;
-          password: string;
-        }) => {
+        verify: async ({ hash, password }: { hash: string; password: string }) => {
           if (isEdgePasswordHash(hash)) {
             return verifyEdgePasswordHash(hash, password, secret);
           }
@@ -215,17 +237,9 @@ function isEdgePasswordHash(hash: string): boolean {
   return hash.startsWith(`${EDGE_PASSWORD_HASH_SCHEME}$`);
 }
 
-async function hashEdgePassword(
-  password: string,
-  secret: string,
-): Promise<string> {
+async function hashEdgePassword(password: string, secret: string): Promise<string> {
   const salt = randomBase64Url(EDGE_PASSWORD_HASH_SALT_BYTES);
-  const digest = await derivePbkdf2Digest(
-    password,
-    secret,
-    salt,
-    EDGE_PASSWORD_HASH_ITERATIONS,
-  );
+  const digest = await derivePbkdf2Digest(password, secret, salt, EDGE_PASSWORD_HASH_ITERATIONS);
   return `${EDGE_PASSWORD_HASH_SCHEME}$${EDGE_PASSWORD_HASH_ITERATIONS}$${salt}$${digest}`;
 }
 
@@ -249,12 +263,7 @@ async function verifyEdgePasswordHash(
     return false;
   }
 
-  const computedDigest = await derivePbkdf2Digest(
-    password,
-    secret,
-    salt,
-    iterations,
-  );
+  const computedDigest = await derivePbkdf2Digest(password, secret, salt, iterations);
   return timingSafeEqual(computedDigest, expectedDigest);
 }
 
@@ -314,10 +323,7 @@ function base64UrlToBytes(value: string): Uint8Array {
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
 
 function timingSafeEqual(left: string, right: string): boolean {

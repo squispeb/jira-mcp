@@ -6,14 +6,21 @@ import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 export class JiraMcpServer {
   private readonly server: McpServer;
   private readonly jiraService: JiraService;
+  private readonly defaultProjectKey?: string;
+  private readonly allowedTools: ReadonlySet<string> | null;
 
   constructor(
     jiraUrl: string,
     username: string,
     apiToken: string,
-    options?: { logSink?: JiraLogSink },
+    options?: { logSink?: JiraLogSink; defaultProjectKey?: string; allowedTools?: string[] },
   ) {
     this.jiraService = new JiraService(jiraUrl, username, apiToken, options?.logSink);
+    this.defaultProjectKey = options?.defaultProjectKey;
+    this.allowedTools =
+      options?.allowedTools && options.allowedTools.length > 0
+        ? new Set(options.allowedTools)
+        : null;
     this.server = new McpServer({
       name: "Jira MCP Server",
       version: "0.1.0",
@@ -22,7 +29,21 @@ export class JiraMcpServer {
     this.registerTools();
   }
 
+  private isToolAllowed(name: string): boolean {
+    if (!this.allowedTools) return true;
+    return this.allowedTools.has(name);
+  }
+
   private registerTools(): void {
+    // Filter tool registrations to only include allowed tools
+    const originalTool = this.server.tool.bind(this.server);
+    const isAllowed = this.isToolAllowed.bind(this);
+    this.server.tool = ((name: string, ...args: unknown[]) => {
+      if (!isAllowed(name)) return this.server;
+      // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
+      return (originalTool as (...a: unknown[]) => unknown)(name, ...args);
+    }) as typeof this.server.tool;
+
     // Tool to get issue information
     this.server.tool(
       "get_issue",
@@ -226,7 +247,10 @@ export class JiraMcpServer {
       async ({ projectKey, maxResults }) => {
         try {
           console.log(`Fetching epics${projectKey ? ` for project: ${projectKey}` : ""}`);
-          const response = await this.jiraService.getEpics(projectKey, maxResults);
+          const response = await this.jiraService.getEpics(
+            projectKey ?? this.defaultProjectKey,
+            maxResults,
+          );
           console.log(`Successfully fetched ${response.issues.length} epics`);
           return {
             content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
@@ -289,7 +313,10 @@ export class JiraMcpServer {
       async ({ projectKey, maxResults }) => {
         try {
           console.log(`Fetching assigned issues${projectKey ? ` for project: ${projectKey}` : ""}`);
-          const response = await this.jiraService.getAssignedIssues(projectKey, maxResults);
+          const response = await this.jiraService.getAssignedIssues(
+            projectKey ?? this.defaultProjectKey,
+            maxResults,
+          );
           console.log(`Successfully fetched ${response.issues.length} assigned issues`);
           return {
             content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
@@ -324,7 +351,11 @@ export class JiraMcpServer {
           console.log(
             `Fetching pending assigned issues${projectKey ? ` for project: ${projectKey}` : ""}`,
           );
-          const response = await this.jiraService.getAssignedIssues(projectKey, maxResults, false);
+          const response = await this.jiraService.getAssignedIssues(
+            projectKey ?? this.defaultProjectKey,
+            maxResults,
+            false,
+          );
           console.log(`Successfully fetched ${response.issues.length} pending assigned issues`);
           return {
             content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
@@ -363,7 +394,7 @@ export class JiraMcpServer {
           );
           const response = await this.jiraService.getIssuesByType(
             issueType,
-            projectKey,
+            projectKey ?? this.defaultProjectKey,
             maxResults,
           );
           console.log(`Successfully fetched ${response.issues.length} issues of type ${issueType}`);
@@ -441,7 +472,12 @@ export class JiraMcpServer {
       async ({ projectKey, summary, description, labels }) => {
         try {
           console.log(`Creating epic in project ${projectKey}: ${summary}`);
-          const response = await this.jiraService.createEpic(projectKey, summary, description, labels);
+          const response = await this.jiraService.createEpic(
+            projectKey,
+            summary,
+            description,
+            labels,
+          );
           console.log(`Successfully created epic: ${response.key}`);
           return {
             content: [{ type: "text", text: JSON.stringify(response, null, 2) }],

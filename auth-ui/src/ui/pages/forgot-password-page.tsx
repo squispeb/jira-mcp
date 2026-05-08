@@ -43,7 +43,8 @@ export function ForgotPasswordPage() {
 
   function getResetRedirectTo() {
     const basePath =
-      import.meta.env.VITE_ROUTER_BASENAME || (window.location.pathname.startsWith("/auth") ? "/auth" : "");
+      import.meta.env.VITE_ROUTER_BASENAME ||
+      (window.location.pathname.startsWith("/auth") ? "/auth" : "");
     const uiOrigin = import.meta.env.VITE_AUTH_UI_ORIGIN || window.location.origin;
     return `${uiOrigin}${basePath}/reset-password`;
   }
@@ -58,7 +59,9 @@ export function ForgotPasswordPage() {
             <Mail className="h-5 w-5" />
           </div>
           <CardTitle className="text-2xl">Recover Password</CardTitle>
-          <CardDescription>Send a reset link to your email. In development, the worker logs it.</CardDescription>
+          <CardDescription>
+            Send a reset link to your email. In development, the worker logs it.
+          </CardDescription>
         </CardHeader>
         <CardContent>
           <form onSubmit={onSubmit} className="space-y-4">
@@ -88,7 +91,10 @@ export function ForgotPasswordPage() {
           </form>
         </CardContent>
         <CardFooter className="justify-center text-sm text-muted-foreground">
-          <Link to={loginHref} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+          <Link
+            to={loginHref}
+            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to sign in
           </Link>
