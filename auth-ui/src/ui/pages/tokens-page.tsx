@@ -385,7 +385,8 @@ export function TokensPage() {
                     </Badge>
                   </button>
                   <p className="text-xs text-muted-foreground">
-                    Limit which MCP tools this token can access. Leave all selected for unrestricted access.
+                    Limit which MCP tools this token can access. Leave all selected for unrestricted
+                    access.
                   </p>
                 </div>
                 <div className="grid gap-4 sm:grid-cols-2">

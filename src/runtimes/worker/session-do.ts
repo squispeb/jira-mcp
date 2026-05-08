@@ -100,7 +100,12 @@ export class JiraMcpSessionDurableObject {
       const authWorkspaceId = request.headers.get("x-auth-workspace-id")?.trim() || undefined;
       const defaultProjectKey = request.headers.get("x-jira-project-key")?.trim() || undefined;
       const allowedToolsRaw = request.headers.get("x-allowed-tools")?.trim();
-      const allowedTools = allowedToolsRaw ? allowedToolsRaw.split(",").map((t) => t.trim()).filter(Boolean) : undefined;
+      const allowedTools = allowedToolsRaw
+        ? allowedToolsRaw
+            .split(",")
+            .map((t) => t.trim())
+            .filter(Boolean)
+        : undefined;
       const parsedBody = await parseJsonBody(request);
       if (parsedBody.invalidJson) {
         return createJsonRpcError(400, -32700, "Parse error: request body must be valid JSON");

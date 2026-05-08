@@ -29,6 +29,7 @@ type WorkerEnv = {
   JIRA_WORKSPACE_ENCRYPTION_KEY?: string;
   MCP_INTERNAL_SIGNING_SECRET?: string;
   AUTH_UI_URL?: string;
+  RESEND_API_KEY?: string;
   AUTH_UI_ASSETS?: AssetsBindingLike;
   JIRA_MCP_SESSIONS: DurableObjectNamespaceLike;
 };
@@ -52,6 +53,7 @@ export default {
       env.AUTH_DB,
       env.BETTER_AUTH_SECRET,
       env.AUTH_UI_URL,
+      env.RESEND_API_KEY,
     );
     if (betterAuthResponse) {
       return withCorsHeaders(request, betterAuthResponse);

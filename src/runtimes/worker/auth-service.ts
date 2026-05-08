@@ -14,7 +14,6 @@ export type D1DatabaseLike = {
   prepare(query: string): D1PreparedStatementLike;
 };
 
-
 type RegisterPayload = {
   email: string;
   password: string;
@@ -288,7 +287,7 @@ export class WorkerAuthService {
       tokenId: row.tokenId,
       workspaceId: row.workspaceId || undefined,
       defaultProjectKey: row.defaultProjectKey || undefined,
-      allowedTools: row.allowedTools ? JSON.parse(row.allowedTools) as string[] : null,
+      allowedTools: row.allowedTools ? (JSON.parse(row.allowedTools) as string[]) : null,
     };
   }
 
