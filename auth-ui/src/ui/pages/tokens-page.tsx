@@ -75,6 +75,10 @@ export function TokensPage() {
   );
   const [isLoadingProjects, setIsLoadingProjects] = useState(false);
 
+  // Inline edit projects state
+  const [editProjects, setEditProjects] = useState<Array<{ key: string; name: string }>>([]);
+  const [isLoadingEditProjects, setIsLoadingEditProjects] = useState(false);
+
   // Created token state
   const [createdToken, setCreatedToken] = useState("");
   const [showToken, setShowToken] = useState(false);
@@ -159,14 +163,28 @@ export function TokensPage() {
     }
   }
 
-  function startEdit(token: AuthTokenInfo) {
+  async function startEdit(token: AuthTokenInfo) {
     setEditingTokenId(token.id);
     setEditingProjectKey(token.defaultProjectKey || "");
+    setEditProjects([]);
+
+    if (token.workspaceId) {
+      setIsLoadingEditProjects(true);
+      try {
+        const response = await listWorkspaceProjects(token.workspaceId);
+        setEditProjects(response.projects);
+      } catch {
+        toast.error("Failed to load projects for this workspace.");
+      } finally {
+        setIsLoadingEditProjects(false);
+      }
+    }
   }
 
   function cancelEdit() {
     setEditingTokenId(null);
     setEditingProjectKey("");
+    setEditProjects([]);
   }
 
   async function saveProjectKey(tokenId: string) {
@@ -440,18 +458,37 @@ export function TokensPage() {
                           className="flex items-center gap-1"
                           onClick={(e) => e.stopPropagation()}
                         >
-                          <Input
-                            autoFocus
-                            value={editingProjectKey}
-                            onChange={(e) => setEditingProjectKey(e.target.value.toUpperCase())}
-                            onKeyDown={(e) => {
-                              if (e.key === "Enter") void saveProjectKey(t.id);
-                              if (e.key === "Escape") cancelEdit();
-                            }}
-                            placeholder="PROJ"
-                            disabled={isSaving}
-                            className="h-7 w-20 font-mono text-xs"
-                          />
+                          {isLoadingEditProjects ? (
+                            <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                          ) : editProjects.length > 0 ? (
+                            <select
+                              autoFocus
+                              value={editingProjectKey}
+                              onChange={(e) => setEditingProjectKey(e.target.value)}
+                              disabled={isSaving}
+                              className="h-7 w-32 rounded border border-input bg-transparent px-1 text-xs font-mono"
+                            >
+                              <option value="">None</option>
+                              {editProjects.map((p) => (
+                                <option key={p.key} value={p.key}>
+                                  {p.key} — {p.name}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            <Input
+                              autoFocus
+                              value={editingProjectKey}
+                              onChange={(e) => setEditingProjectKey(e.target.value.toUpperCase())}
+                              onKeyDown={(e) => {
+                                if (e.key === "Enter") void saveProjectKey(t.id);
+                                if (e.key === "Escape") cancelEdit();
+                              }}
+                              placeholder="PROJ"
+                              disabled={isSaving}
+                              className="h-7 w-20 font-mono text-xs"
+                            />
+                          )}
                           <Button
                             variant="ghost"
                             size="sm"
@@ -479,7 +516,7 @@ export function TokensPage() {
                         <button
                           type="button"
                           className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted transition-colors"
-                          onClick={() => startEdit(t)}
+                          onClick={() => void startEdit(t)}
                           title="Set default project key"
                         >
                           {t.defaultProjectKey ? (
