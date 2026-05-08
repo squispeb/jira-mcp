@@ -173,8 +173,8 @@ async function createAuthInstance(
       autoSignIn: true,
       revokeSessionsOnPasswordReset: true,
       resetPasswordTokenExpiresIn: 60 * 60,
-      sendResetPassword: async ({ user, token }) => {
-        const url = buildResetPasswordUrl(token, authUiUrl);
+      sendResetPassword: async ({ user, token, url: providedUrl }) => {
+        const url = providedUrl || buildResetPasswordUrl(token, authUiUrl);
         console.log("[auth] password reset requested", {
           userId: user.id,
           email: user.email,
