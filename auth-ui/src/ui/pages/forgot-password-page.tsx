@@ -1,5 +1,5 @@
-import { FormEvent, useState } from "react";
-import { Link } from "react-router-dom";
+import { FormEvent, useMemo, useState } from "react";
+import { Link, useLocation } from "react-router-dom";
 import { Loader2, Mail, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
 import { Button } from "@/components/ui/button";
@@ -17,7 +17,12 @@ import { requestPasswordReset } from "@/lib/api";
 import { getAuthEmail, setAuthEmail } from "@/lib/storage";
 
 export function ForgotPasswordPage() {
-  const [email, setEmail] = useState(() => getAuthEmail());
+  const location = useLocation();
+  const initialEmail = useMemo(() => {
+    const queryEmail = new URLSearchParams(location.search).get("email") || "";
+    return queryEmail || getAuthEmail();
+  }, [location.search]);
+  const [email, setEmail] = useState(() => initialEmail);
   const [isLoading, setIsLoading] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -42,6 +47,8 @@ export function ForgotPasswordPage() {
     const uiOrigin = import.meta.env.VITE_AUTH_UI_ORIGIN || window.location.origin;
     return `${uiOrigin}${basePath}/reset-password`;
   }
+
+  const loginHref = email ? `/login?email=${encodeURIComponent(email)}` : "/login";
 
   return (
     <div className="flex min-h-[calc(100vh-10rem)] items-center justify-center px-4 py-12">
@@ -81,7 +88,7 @@ export function ForgotPasswordPage() {
           </form>
         </CardContent>
         <CardFooter className="justify-center text-sm text-muted-foreground">
-          <Link to="/login" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+          <Link to={loginHref} className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to sign in
           </Link>

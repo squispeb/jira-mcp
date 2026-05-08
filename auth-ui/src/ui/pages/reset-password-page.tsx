@@ -97,7 +97,10 @@ export function ResetPasswordPage() {
           </form>
         </CardContent>
         <CardFooter className="justify-center text-sm text-muted-foreground">
-          <Link to="/login" className="inline-flex items-center gap-1 font-medium text-primary hover:underline">
+          <Link
+            to={email ? `/login?email=${encodeURIComponent(email)}` : "/login"}
+            className="inline-flex items-center gap-1 font-medium text-primary hover:underline"
+          >
             <ArrowLeft className="h-3.5 w-3.5" />
             Back to sign in
           </Link>
