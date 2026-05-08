@@ -65,6 +65,20 @@ export async function loginUser(
   });
 }
 
+export async function requestPasswordReset(email: string, redirectTo: string) {
+  return request<{ message?: string }>("POST", "/api/auth/request-password-reset", {
+    email,
+    redirectTo,
+  });
+}
+
+export async function resetPassword(token: string, newPassword: string) {
+  return request<{ message?: string }>("POST", "/api/auth/reset-password", {
+    token,
+    newPassword,
+  });
+}
+
 export async function createToken(
   authToken: string | undefined,
   tokenName: string,

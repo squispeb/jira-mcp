@@ -54,7 +54,7 @@ export function DashboardLayout() {
   async function onLogout() {
     try {
       await logout();
-      navigate("/");
+      navigate("/login", { replace: true });
     } catch {
       // handled by auth context
     }

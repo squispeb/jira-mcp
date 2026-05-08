@@ -51,6 +51,7 @@ export default {
       request,
       env.AUTH_DB,
       env.BETTER_AUTH_SECRET,
+      env.AUTH_UI_URL,
     );
     if (betterAuthResponse) {
       return withCorsHeaders(request, betterAuthResponse);
@@ -79,10 +80,6 @@ export default {
       return withCorsHeaders(request, new Response("ok"));
     }
 
-    if (url.pathname !== "/mcp") {
-      return withCorsHeaders(request, new Response("Not Found", { status: 404 }));
-    }
-
     const authTokens = parseAuthTokens(env.MCP_AUTH_TOKEN, env.MCP_AUTH_TOKENS);
     if (authTokens.size === 0 && !authService.isConfigured()) {
       return withCorsHeaders(
@@ -96,6 +93,32 @@ export default {
     const authContext = await authorizeRequest(request, authTokens, authService);
     if (!authContext) {
       return withCorsHeaders(request, new Response("Unauthorized", { status: 401 }));
+    }
+
+    if (url.pathname === "/debug/session") {
+      return withCorsHeaders(
+        request,
+        Response.json(
+          {
+            method: request.method,
+            authMode: authContext.type,
+            hasSessionId:
+              request.headers.has("mcp-session-id") || request.headers.has("x-mcp-session-id"),
+            sessionId:
+              request.headers.get("mcp-session-id") ||
+              request.headers.get("x-mcp-session-id") ||
+              null,
+            workspaceId: authContext.type === "user" ? authContext.workspaceId || null : null,
+            userId: authContext.type === "user" ? authContext.userId : null,
+            tokenId: authContext.type === "user" ? authContext.tokenId : null,
+          },
+          { status: 200 },
+        ),
+      );
+    }
+
+    if (url.pathname !== "/mcp") {
+      return withCorsHeaders(request, new Response("Not Found", { status: 404 }));
     }
 
     const workspaceCredentials =

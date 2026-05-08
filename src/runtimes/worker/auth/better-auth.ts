@@ -16,25 +16,39 @@ type BetterAuthLike = {
   };
 };
 
+type BetterAuthPasswordModule = {
+  verifyPassword(input: { hash: string; password: string }): Promise<boolean>;
+};
+
 type BetterAuthUser = {
   userId: string;
   email: string;
 };
 
-const DEFAULT_TRUSTED_ORIGINS = ["http://localhost:5173", "http://127.0.0.1:5173"];
+const DEFAULT_TRUSTED_ORIGINS = [
+  "http://localhost:5173",
+  "http://127.0.0.1:5173",
+  "http://localhost:8787",
+  "http://127.0.0.1:8787",
+];
 const DEPLOYED_TRUSTED_ORIGINS = [
   "https://jira-mcp-server.creax-ai.com",
   "https://jira-context-mcp.contacto-80f.workers.dev",
   "https://jira-context-mcp-preview.contacto-80f.workers.dev",
 ];
+const EDGE_PASSWORD_HASH_SCHEME = "pbkdf2_sha256";
+const EDGE_PASSWORD_HASH_ITERATIONS = 1000;
+const EDGE_PASSWORD_HASH_SALT_BYTES = 16;
 
 let cachedAuthPromise: Promise<BetterAuthLike> | null = null;
 let cachedAuthSecret = "";
+let cachedAuthUiUrl = "";
 
 export async function handleBetterAuthRequest(
   request: Request,
   db: D1DatabaseLike | undefined,
   secret: string | undefined,
+  authUiUrl?: string,
 ): Promise<Response | null> {
   const pathname = new URL(request.url).pathname;
   if (!pathname.startsWith("/api/auth")) {
@@ -44,13 +58,34 @@ export async function handleBetterAuthRequest(
   if (!db || !secret) {
     return Response.json(
       {
-        error: "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
+        error:
+          "Better Auth is not configured. Missing AUTH_DB or BETTER_AUTH_SECRET.",
       },
       { status: 503 },
     );
   }
 
-  const auth = await getAuthInstance(db, secret);
+  if (pathname === "/api/auth/request-password-reset" && request.method === "POST") {
+    const body = (await request.clone().json().catch(() => null)) as { email?: string } | null;
+    const email = body?.email?.trim().toLowerCase();
+    if (!email) {
+      return Response.json({ error: "Email is required." }, { status: 400 });
+    }
+
+    const user = await db
+      .prepare("SELECT id FROM auth_users WHERE lower(email) = lower(?) LIMIT 1")
+      .bind(email)
+      .first<{ id: string }>();
+
+    if (!user) {
+      return Response.json(
+        { error: `No account found for ${email}.` },
+        { status: 404 },
+      );
+    }
+  }
+
+  const auth = await getAuthInstance(db, secret, authUiUrl);
   return auth.handler(request);
 }
 
@@ -80,22 +115,37 @@ export async function resolveBetterAuthUserFromRequest(
   };
 }
 
-async function getAuthInstance(db: D1DatabaseLike, secret: string): Promise<BetterAuthLike> {
-  if (cachedAuthPromise && cachedAuthSecret === secret) {
+async function getAuthInstance(
+  db: D1DatabaseLike,
+  secret: string,
+  authUiUrl?: string,
+): Promise<BetterAuthLike> {
+  if (
+    cachedAuthPromise &&
+    cachedAuthSecret === secret &&
+    cachedAuthUiUrl === (authUiUrl || "")
+  ) {
     return cachedAuthPromise;
   }
 
   cachedAuthSecret = secret;
-  cachedAuthPromise = createAuthInstance(db, secret);
+  cachedAuthUiUrl = authUiUrl || "";
+  cachedAuthPromise = createAuthInstance(db, secret, authUiUrl);
   return cachedAuthPromise;
 }
 
-async function createAuthInstance(db: D1DatabaseLike, secret: string): Promise<BetterAuthLike> {
-  const [{ betterAuth }, { drizzleAdapter }, { drizzle }] = await Promise.all([
-    import("better-auth"),
-    import("better-auth/adapters/drizzle"),
-    import("drizzle-orm/d1"),
-  ]);
+async function createAuthInstance(
+  db: D1DatabaseLike,
+  secret: string,
+  authUiUrl?: string,
+): Promise<BetterAuthLike> {
+  const [{ betterAuth }, { drizzleAdapter }, { drizzle }, passwordModule] =
+    await Promise.all([
+      import("better-auth"),
+      import("better-auth/adapters/drizzle"),
+      import("drizzle-orm/d1"),
+      import("better-auth/crypto") as Promise<BetterAuthPasswordModule>,
+    ]);
 
   const drizzleDb = drizzle(db as never, { schema: betterAuthSchema });
 
@@ -121,9 +171,164 @@ async function createAuthInstance(db: D1DatabaseLike, secret: string): Promise<B
     emailAndPassword: {
       enabled: true,
       autoSignIn: true,
+      revokeSessionsOnPasswordReset: true,
+      resetPasswordTokenExpiresIn: 60 * 60,
+      sendResetPassword: async ({ user, token }) => {
+        const url = buildResetPasswordUrl(token, authUiUrl);
+        console.log("[auth] password reset requested", {
+          userId: user.id,
+          email: user.email,
+          token,
+          url,
+        });
+      },
+      password: {
+        hash: (password: string) => hashEdgePassword(password, secret),
+        verify: async ({
+          hash,
+          password,
+        }: {
+          hash: string;
+          password: string;
+        }) => {
+          if (isEdgePasswordHash(hash)) {
+            return verifyEdgePasswordHash(hash, password, secret);
+          }
+
+          return passwordModule.verifyPassword({ hash, password });
+        },
+      },
     },
     trustedOrigins: [...DEFAULT_TRUSTED_ORIGINS, ...DEPLOYED_TRUSTED_ORIGINS],
   });
 
   return auth as BetterAuthLike;
+}
+
+function buildResetPasswordUrl(token: string, authUiUrl?: string): string {
+  const base = authUiUrl?.trim() || "http://localhost:5173";
+  const normalizedBase = base.endsWith("/") ? base.slice(0, -1) : base;
+  return `${normalizedBase}/reset-password/${encodeURIComponent(token)}`;
+}
+
+function isEdgePasswordHash(hash: string): boolean {
+  return hash.startsWith(`${EDGE_PASSWORD_HASH_SCHEME}$`);
+}
+
+async function hashEdgePassword(
+  password: string,
+  secret: string,
+): Promise<string> {
+  const salt = randomBase64Url(EDGE_PASSWORD_HASH_SALT_BYTES);
+  const digest = await derivePbkdf2Digest(
+    password,
+    secret,
+    salt,
+    EDGE_PASSWORD_HASH_ITERATIONS,
+  );
+  return `${EDGE_PASSWORD_HASH_SCHEME}$${EDGE_PASSWORD_HASH_ITERATIONS}$${salt}$${digest}`;
+}
+
+async function verifyEdgePasswordHash(
+  hash: string,
+  password: string,
+  secret: string,
+): Promise<boolean> {
+  const parts = hash.split("$");
+  if (parts.length !== 4) {
+    return false;
+  }
+
+  const [scheme, iterationsRaw, salt, expectedDigest] = parts;
+  if (scheme !== EDGE_PASSWORD_HASH_SCHEME || !salt || !expectedDigest) {
+    return false;
+  }
+
+  const iterations = Number.parseInt(iterationsRaw, 10);
+  if (!Number.isFinite(iterations) || iterations <= 0) {
+    return false;
+  }
+
+  const computedDigest = await derivePbkdf2Digest(
+    password,
+    secret,
+    salt,
+    iterations,
+  );
+  return timingSafeEqual(computedDigest, expectedDigest);
+}
+
+async function derivePbkdf2Digest(
+  password: string,
+  secret: string,
+  saltBase64Url: string,
+  iterations: number,
+): Promise<string> {
+  const keyMaterial = await crypto.subtle.importKey(
+    "raw",
+    new TextEncoder().encode(`${password}\u0000${secret}`),
+    "PBKDF2",
+    false,
+    ["deriveBits"],
+  );
+
+  const bits = await crypto.subtle.deriveBits(
+    {
+      name: "PBKDF2",
+      salt: toArrayBuffer(base64UrlToBytes(saltBase64Url)),
+      iterations,
+      hash: "SHA-256",
+    },
+    keyMaterial,
+    256,
+  );
+
+  return bytesToBase64Url(new Uint8Array(bits));
+}
+
+function randomBase64Url(byteLength: number): string {
+  const bytes = new Uint8Array(byteLength);
+  crypto.getRandomValues(bytes);
+  return bytesToBase64Url(bytes);
+}
+
+function bytesToBase64Url(bytes: Uint8Array): string {
+  const base64 =
+    typeof Buffer !== "undefined"
+      ? Buffer.from(bytes).toString("base64")
+      : btoa(String.fromCharCode(...bytes));
+
+  return base64.replace(/\+/g, "-").replace(/\//g, "_").replace(/=+$/g, "");
+}
+
+function base64UrlToBytes(value: string): Uint8Array {
+  const base64 = value.replace(/-/g, "+").replace(/_/g, "/");
+  const padded = base64 + "=".repeat((4 - (base64.length % 4)) % 4);
+
+  if (typeof Buffer !== "undefined") {
+    return Uint8Array.from(Buffer.from(padded, "base64"));
+  }
+
+  const decoded = atob(padded);
+  return Uint8Array.from(decoded, (char) => char.charCodeAt(0));
+}
+
+function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
+  return bytes.buffer.slice(
+    bytes.byteOffset,
+    bytes.byteOffset + bytes.byteLength,
+  ) as ArrayBuffer;
+}
+
+function timingSafeEqual(left: string, right: string): boolean {
+  if (left.length !== right.length) {
+    return false;
+  }
+
+  let result = 0;
+  for (let i = 0; i < left.length; i += 1) {
+    result |= left.charCodeAt(i) ^ right.charCodeAt(i);
+  }
+
+  return result === 0;
 }

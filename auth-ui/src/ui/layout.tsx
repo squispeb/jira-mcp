@@ -1,4 +1,4 @@
-import { NavLink, Outlet } from "react-router-dom";
+import { NavLink, Outlet, useNavigate } from "react-router-dom";
 import { LogOut, Shield, Loader2 } from "lucide-react";
 import { Button } from "@/components/ui/button";
 import { Separator } from "@/components/ui/separator";
@@ -7,10 +7,12 @@ import { cn } from "@/lib/utils";
 
 export function AuthLayout() {
   const { isAuthenticated, userEmail, logout, isLoading } = useAuth();
+  const navigate = useNavigate();
 
   async function onLogout() {
     try {
       await logout();
+      navigate("/login", { replace: true });
     } catch {
       // no-op
     }

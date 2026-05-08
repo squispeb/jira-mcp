@@ -82,6 +82,72 @@ export class JiraMcpServer {
       },
     );
 
+    this.server.tool(
+      "add_issue_labels",
+      "Add one or more labels to an existing Jira issue",
+      {
+        issueKey: z.string().describe("The Jira issue key to update (e.g., PROJ-123)"),
+        labels: z.array(z.string().min(1)).min(1).describe("Labels to add to the issue"),
+      },
+      async ({ issueKey, labels }) => {
+        try {
+          console.log(`Adding labels to issue ${issueKey}: ${labels.join(", ")}`);
+          await this.jiraService.addIssueLabels(issueKey, labels);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Labels added to ${issueKey}: ${labels.join(", ")}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error adding labels to ${issueKey}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error adding labels: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "remove_issue_labels",
+      "Remove one or more labels from an existing Jira issue",
+      {
+        issueKey: z.string().describe("The Jira issue key to update (e.g., PROJ-123)"),
+        labels: z.array(z.string().min(1)).min(1).describe("Labels to remove from the issue"),
+      },
+      async ({ issueKey, labels }) => {
+        try {
+          console.log(`Removing labels from issue ${issueKey}: ${labels.join(", ")}`);
+          await this.jiraService.removeIssueLabels(issueKey, labels);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Labels removed from ${issueKey}: ${labels.join(", ")}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error removing labels from ${issueKey}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error removing labels: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
     // Tool to transition an issue
     this.server.tool(
       "transition_issue",
@@ -370,11 +436,12 @@ export class JiraMcpServer {
         projectKey: z.string().describe("The key of the Jira project (e.g., PROJ)"),
         summary: z.string().describe("The summary/title of the epic"),
         description: z.string().optional().describe("Optional description for the epic"),
+        labels: z.array(z.string().min(1)).optional().describe("Optional labels to add on create"),
       },
-      async ({ projectKey, summary, description }) => {
+      async ({ projectKey, summary, description, labels }) => {
         try {
           console.log(`Creating epic in project ${projectKey}: ${summary}`);
-          const response = await this.jiraService.createEpic(projectKey, summary, description);
+          const response = await this.jiraService.createEpic(projectKey, summary, description, labels);
           console.log(`Successfully created epic: ${response.key}`);
           return {
             content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
@@ -403,8 +470,9 @@ export class JiraMcpServer {
         summary: z.string().describe("The summary/title of the issue"),
         parentKey: z.string().describe("The key of the parent epic (e.g., PROJ-123)"),
         description: z.string().optional().describe("Optional description for the issue"),
+        labels: z.array(z.string().min(1)).optional().describe("Optional labels to add on create"),
       },
-      async ({ projectKey, issueType, summary, parentKey, description }) => {
+      async ({ projectKey, issueType, summary, parentKey, description, labels }) => {
         try {
           console.log(
             `Creating ${issueType} in project ${projectKey} under parent ${parentKey}: ${summary}`,
@@ -415,6 +483,7 @@ export class JiraMcpServer {
             summary,
             parentKey,
             description,
+            labels,
           );
           console.log(`Successfully created issue: ${response.key}`);
           return {
@@ -472,15 +541,16 @@ export class JiraMcpServer {
     // Tool to update an issue description
     this.server.tool(
       "update_issue_description",
-      "Replace the description of an existing Jira issue",
+      "Replace the description and optionally set labels on an existing Jira issue",
       {
         issueKey: z.string().describe("The key of the issue to update (e.g., PROJ-123)"),
         description: z.string().min(1).describe("The new markdown/plain text description to set"),
+        labels: z.array(z.string().min(1)).optional().describe("Optional labels to set"),
       },
-      async ({ issueKey, description }) => {
+      async ({ issueKey, description, labels }) => {
         try {
           console.log(`Updating description for issue ${issueKey}`);
-          await this.jiraService.updateIssueDescription(issueKey, description);
+          await this.jiraService.updateIssueDescription(issueKey, description, labels);
           return {
             content: [
               {

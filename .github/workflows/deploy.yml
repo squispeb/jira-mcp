@@ -37,33 +37,63 @@ jobs:
       - name: Build auth-ui
         run: bun run build:auth-ui
 
-      - name: Deploy to Preview
-        run: bun run deploy:worker:preview:with-ui
-        env:
-          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
-
-      - name: Record preview deployment
+      - name: Create preview deployment
+        id: create-deployment
         uses: actions/github-script@v7
         with:
           script: |
-            const deployment = await github.rest.repos.createDeployment({
+            const { data } = await github.rest.repos.createDeployment({
               owner: context.repo.owner,
               repo: context.repo.repo,
               ref: context.sha,
               environment: 'preview',
               auto_merge: false,
               required_contexts: [],
-              transient_environment: true,
-              production_environment: false
             });
+            core.setOutput('deployment_id', String(data.id));
+
+      - name: Upload preview version
+        id: upload-version
+        run: |
+          UPLOAD_OUTPUT="$(bunx wrangler versions upload \
+            --env preview \
+            --name jira-context-mcp-preview \
+            --message "preview ${GITHUB_SHA}" \
+            --tag "${GITHUB_SHA}")"
+          echo "$UPLOAD_OUTPUT"
+          VERSION_ID="$(printf '%s' "$UPLOAD_OUTPUT" | node -e 'const fs = require("node:fs"); const input = fs.readFileSync(0, "utf8"); const match = input.match(/Worker Version ID:\s*([0-9a-f-]+)/i); if (!match) { process.exit(1); } process.stdout.write(match[1]);')"
+          echo "version_id=${VERSION_ID}" >> "$GITHUB_OUTPUT"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Deploy preview version
+        run: |
+          bunx wrangler versions deploy "${{ steps.upload-version.outputs.version_id }}@100" \
+            --env preview \
+            --name jira-context-mcp-preview \
+            --yes \
+            --message "preview ${GITHUB_SHA}"
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+
+      - name: Publish preview deployment status
+        uses: actions/github-script@v7
+        with:
+          script: |
             await github.rest.repos.createDeploymentStatus({
               owner: context.repo.owner,
               repo: context.repo.repo,
-              deployment_id: deployment.data.id,
+              deployment_id: Number(process.env.DEPLOYMENT_ID),
               state: 'success',
-              environment: 'preview'
+              environment: 'preview',
+              description: `preview version ${process.env.VERSION_ID} from ${process.env.GITHUB_SHA}`,
             });
+        env:
+          DEPLOYMENT_ID: ${{ steps.create-deployment.outputs.deployment_id }}
+          VERSION_ID: ${{ steps.upload-version.outputs.version_id }}
+          GITHUB_SHA: ${{ github.sha }}
 
   deploy-production:
     if: github.ref == 'refs/heads/main' || (github.event_name == 'workflow_dispatch' && github.event.inputs.environment == 'production')

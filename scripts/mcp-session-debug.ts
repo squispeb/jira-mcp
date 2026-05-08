@@ -1,9 +1,6 @@
 type RequiredEnv = {
   JIRA_MCP_URL: string;
   MCP_WORKSPACE_TOKEN: string;
-  JIRA_BASE_URL?: string;
-  JIRA_USERNAME?: string;
-  JIRA_API_TOKEN?: string;
 };
 
 async function main() {
@@ -13,12 +10,6 @@ async function main() {
     "Content-Type": "application/json",
     Accept: "application/json, text/event-stream",
   };
-
-  if (env.JIRA_BASE_URL && env.JIRA_USERNAME && env.JIRA_API_TOKEN) {
-    headers["X-Jira-Base-Url"] = env.JIRA_BASE_URL;
-    headers["X-Jira-Username"] = env.JIRA_USERNAME;
-    headers["X-Jira-Api-Token"] = env.JIRA_API_TOKEN;
-  }
 
   const initializeResponse = await fetch(env.JIRA_MCP_URL, {
     method: "POST",
@@ -31,7 +22,7 @@ async function main() {
         protocolVersion: "2025-06-18",
         capabilities: {},
         clientInfo: {
-          name: "mcp-smoke-test",
+          name: "mcp-session-debug",
           version: "1.0.0",
         },
       },
@@ -51,53 +42,44 @@ async function main() {
     "MCP-Protocol-Version": "2025-06-18",
   };
 
-  const initializedResponse = await fetch(env.JIRA_MCP_URL, {
-    method: "POST",
-    headers: sessionHeaders,
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      method: "notifications/initialized",
-      params: {},
-    }),
+  const baseUrl = env.JIRA_MCP_URL.replace(/\/mcp$/, "");
+  const workerDebugResponse = await fetch(`${baseUrl}/debug/session`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${env.MCP_WORKSPACE_TOKEN}`,
+      "MCP-Session-Id": sessionId,
+    },
   });
-  const initializedBody = await initializedResponse.text();
-  if (![200, 202, 204].includes(initializedResponse.status)) {
-    throw new Error(
-      `initialized notification failed with ${initializedResponse.status}: ${initializedBody}`,
-    );
-  }
+  const workerDebugBody = await workerDebugResponse.text();
+  assertOk(workerDebugResponse, "debug/session", workerDebugBody);
 
-  const listToolsResponse = await fetch(env.JIRA_MCP_URL, {
-    method: "POST",
-    headers: sessionHeaders,
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 2,
-      method: "tools/list",
-      params: {},
-    }),
+  const mcpDebugResponse = await fetch(env.JIRA_MCP_URL, {
+    method: "GET",
+    headers: {
+      ...sessionHeaders,
+      "x-debug-session": "1",
+    },
   });
-  const listToolsBody = await listToolsResponse.text();
-  assertOk(listToolsResponse, "tools/list", listToolsBody);
+  const mcpDebugBody = await mcpDebugResponse.text();
+  assertOk(mcpDebugResponse, "mcp debug", mcpDebugBody);
 
-  const getProjectsResponse = await fetch(env.JIRA_MCP_URL, {
-    method: "POST",
-    headers: sessionHeaders,
-    body: JSON.stringify({
-      jsonrpc: "2.0",
-      id: 3,
-      method: "tools/call",
-      params: {
-        name: "get_projects",
-        arguments: {},
-      },
-    }),
+  const restartDebugResponse = await fetch(`${baseUrl}/debug/session`, {
+    method: "GET",
+    headers: {
+      Authorization: `Bearer ${env.MCP_WORKSPACE_TOKEN}`,
+      "MCP-Session-Id": sessionId,
+      "x-debug-session": "1",
+      "x-debug-reset": "1",
+    },
   });
-  const getProjectsBody = await getProjectsResponse.text();
-  assertOk(getProjectsResponse, "tools/call get_projects", getProjectsBody);
+  const restartDebugBody = await restartDebugResponse.text();
+  assertOk(restartDebugResponse, "debug/session reset", restartDebugBody);
 
-  console.log("Smoke test passed");
+  console.log("Session debug passed");
   console.log(`Session ID: ${sessionId}`);
+  console.log(`Worker debug: ${workerDebugBody}`);
+  console.log(`MCP debug: ${mcpDebugBody}`);
+  console.log(`Restart debug: ${restartDebugBody}`);
 }
 
 function readRequiredEnv(): RequiredEnv {
@@ -117,9 +99,6 @@ function readRequiredEnv(): RequiredEnv {
   return {
     JIRA_MCP_URL: process.env.JIRA_MCP_URL?.trim() || "http://127.0.0.1:8787/mcp",
     MCP_WORKSPACE_TOKEN: workspaceToken,
-    JIRA_BASE_URL: process.env.JIRA_BASE_URL?.trim(),
-    JIRA_USERNAME: process.env.JIRA_USERNAME?.trim(),
-    JIRA_API_TOKEN: process.env.JIRA_API_TOKEN?.trim(),
   };
 }
 
