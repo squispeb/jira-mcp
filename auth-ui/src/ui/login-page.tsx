@@ -40,6 +40,7 @@ export function LoginPage() {
   const { isAuthenticated, signIn, userEmail, isLoading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
+  const [showPassword, setShowPassword] = useState(false);
   const [tokenName, setTokenName] = useState("workspace-token");
   const [expiresInDays, setExpiresInDays] = useState(30);
   const [neverExpires, setNeverExpires] = useState(false);
@@ -261,13 +262,24 @@ export function LoginPage() {
 
               <div className="space-y-2">
                 <Label htmlFor="login-password">Password</Label>
-                <Input
-                  id="login-password"
-                  type="password"
-                  required
-                  value={password}
-                  onChange={(e) => setPassword(e.target.value)}
-                />
+                <div className="flex gap-2">
+                  <Input
+                    id="login-password"
+                    type={showPassword ? "text" : "password"}
+                    required
+                    value={password}
+                    onChange={(e) => setPassword(e.target.value)}
+                  />
+                  <Button
+                    type="button"
+                    variant="outline"
+                    size="icon"
+                    onClick={() => setShowPassword(!showPassword)}
+                    aria-label={showPassword ? "Hide password" : "Show password"}
+                  >
+                    {showPassword ? <EyeOff className="h-4 w-4" /> : <Eye className="h-4 w-4" />}
+                  </Button>
+                </div>
               </div>
 
               <Button type="submit" disabled={isLoading} className="w-full">
