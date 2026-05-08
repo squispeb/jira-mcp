@@ -1,12 +1,8 @@
 #!/usr/bin/env node
 
-import dotenv from "dotenv";
 import { JiraMcpServer } from "./server";
 import { JiraMcpHttpServer } from "./runtimes/node/http-server";
 import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
-
-// Load environment variables
-dotenv.config();
 
 const HTTP_PORT = process.env.HTTP_PORT ? parseInt(process.env.HTTP_PORT, 10) : 3000;
 
