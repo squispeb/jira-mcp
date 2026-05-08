@@ -263,6 +263,9 @@ function attachAuthHeaders(
     if (context.defaultProjectKey) {
       headers.set("x-jira-project-key", context.defaultProjectKey);
     }
+    if (context.allowedTools?.length) {
+      headers.set("x-allowed-tools", context.allowedTools.join(","));
+    }
   }
 
   if (workspaceCredentials) {

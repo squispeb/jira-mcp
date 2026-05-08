@@ -18,6 +18,7 @@ import { toast } from "sonner";
 import {
   AuthTokenInfo,
   JiraWorkspaceInfo,
+  AVAILABLE_TOOLS,
   createToken,
   listTokens,
   listWorkspaces,
@@ -78,6 +79,13 @@ export function TokensPage() {
   // Inline edit projects state
   const [editProjects, setEditProjects] = useState<Array<{ key: string; name: string }>>([]);
   const [isLoadingEditProjects, setIsLoadingEditProjects] = useState(false);
+
+  // Tools selection state
+  const [selectedTools, setSelectedTools] = useState<string[]>([]);
+  const [toolsDialogOpen, setToolsDialogOpen] = useState(false);
+  const [editToolsTokenId, setEditToolsTokenId] = useState<string | null>(null);
+  const [editToolsSelection, setEditToolsSelection] = useState<string[]>([]);
+  const [isSavingTools, setIsSavingTools] = useState(false);
 
   // Created token state
   const [createdToken, setCreatedToken] = useState("");
@@ -141,6 +149,7 @@ export function TokensPage() {
         neverExpires,
         selectedWorkspaceId,
         defaultProjectKey || undefined,
+        selectedTools.length > 0 ? selectedTools : undefined,
       );
       setCreatedToken(response.token);
       setShowToken(true);
@@ -201,6 +210,39 @@ export function TokensPage() {
     } finally {
       setIsSaving(false);
     }
+  }
+
+  function openToolsEditor(token: AuthTokenInfo) {
+    setEditToolsTokenId(token.id);
+    setEditToolsSelection(token.allowedTools ?? []);
+    setToolsDialogOpen(true);
+  }
+
+  async function saveToolsSelection() {
+    if (editToolsTokenId) {
+      setIsSavingTools(true);
+      try {
+        const tools = editToolsSelection.length > 0 ? editToolsSelection : null;
+        await updateToken(undefined, editToolsTokenId, undefined, tools);
+        toast.success(tools ? `Restricted to ${tools.length} tool(s)` : "All tools allowed.");
+        setToolsDialogOpen(false);
+        setEditToolsTokenId(null);
+        await refreshTokens();
+      } catch (err) {
+        toast.error(err instanceof Error ? err.message : "Failed to update tools.");
+      } finally {
+        setIsSavingTools(false);
+      }
+    } else {
+      setSelectedTools(editToolsSelection);
+      setToolsDialogOpen(false);
+    }
+  }
+
+  function toggleToolSelection(name: string) {
+    setEditToolsSelection((prev) =>
+      prev.includes(name) ? prev.filter((t) => t !== name) : [...prev, name],
+    );
   }
 
   async function copyToClipboard() {
@@ -322,6 +364,30 @@ export function TokensPage() {
                     Optional. MCP tools will scope to this project when no key is provided.
                   </p>
                 </div>
+                <div className="space-y-2">
+                  <Label>Tools Access</Label>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setEditToolsTokenId(null);
+                      setEditToolsSelection(selectedTools.length > 0 ? selectedTools : []);
+                      setToolsDialogOpen(true);
+                    }}
+                    className="flex h-9 w-full items-center justify-between rounded-md border border-input bg-transparent px-3 py-1 text-sm shadow-sm transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-1 focus-visible:ring-ring"
+                  >
+                    <span className="text-muted-foreground">
+                      {selectedTools.length > 0
+                        ? `${selectedTools.length} of ${AVAILABLE_TOOLS.length} tools selected`
+                        : `All ${AVAILABLE_TOOLS.length} tools allowed`}
+                    </span>
+                    <Badge variant="secondary" className="text-xs">
+                      {selectedTools.length > 0 ? "Custom" : "All"}
+                    </Badge>
+                  </button>
+                  <p className="text-xs text-muted-foreground">
+                    Limit which MCP tools this token can access. Leave all selected for unrestricted access.
+                  </p>
+                </div>
                 <div className="grid gap-4 sm:grid-cols-2">
                   <div className="space-y-2">
                     <Label htmlFor="tk-days">Expires in (days)</Label>
@@ -434,6 +500,7 @@ export function TokensPage() {
                   <TableHead>Name</TableHead>
                   <TableHead>Workspace</TableHead>
                   <TableHead>Project</TableHead>
+                  <TableHead>Tools</TableHead>
                   <TableHead>Prefix</TableHead>
                   <TableHead>Created</TableHead>
                   <TableHead>Expires</TableHead>
@@ -530,6 +597,25 @@ export function TokensPage() {
                         </button>
                       )}
                     </TableCell>
+                    <TableCell className="text-sm">
+                      <button
+                        type="button"
+                        className="inline-flex items-center gap-1 rounded px-1 py-0.5 hover:bg-muted transition-colors"
+                        onClick={() => openToolsEditor(t)}
+                        title="Configure allowed tools"
+                      >
+                        {t.allowedTools && t.allowedTools.length > 0 ? (
+                          <Badge variant="outline" className="text-xs">
+                            {t.allowedTools.length}/{AVAILABLE_TOOLS.length}
+                          </Badge>
+                        ) : (
+                          <Badge variant="outline" className="text-xs">
+                            All
+                          </Badge>
+                        )}
+                        <Pencil className="h-3 w-3 text-muted-foreground/60" />
+                      </button>
+                    </TableCell>
                     <TableCell>
                       <Badge variant="secondary" className="font-mono text-xs">
                         {t.tokenPrefix}
@@ -623,6 +709,55 @@ export function TokensPage() {
           </CardContent>
         </Card>
       )}
+      {/* Tools editor dialog */}
+      <Dialog open={toolsDialogOpen} onOpenChange={setToolsDialogOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Configure Allowed Tools</DialogTitle>
+            <DialogDescription>
+              {editToolsTokenId
+                ? "Select which MCP tools this token can access."
+                : "Select which tools to grant access to (leave all unchecked for full access)."}
+            </DialogDescription>
+          </DialogHeader>
+          <div className="max-h-80 overflow-y-auto space-y-1">
+            {AVAILABLE_TOOLS.map((tool) => (
+              <label
+                key={tool.name}
+                className="flex items-center gap-2 rounded px-2 py-1 hover:bg-muted cursor-pointer"
+              >
+                <Checkbox
+                  checked={editToolsSelection.includes(tool.name)}
+                  onCheckedChange={() => toggleToolSelection(tool.name)}
+                />
+                <div className="flex-1 min-w-0">
+                  <p className="text-sm font-mono">{tool.name}</p>
+                  <p className="text-xs text-muted-foreground truncate">{tool.description}</p>
+                </div>
+              </label>
+            ))}
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={() => setToolsDialogOpen(false)}>
+              Cancel
+            </Button>
+            <Button
+              type="button"
+              onClick={() => void saveToolsSelection()}
+              disabled={isSavingTools}
+            >
+              {isSavingTools ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Saving...
+                </>
+              ) : (
+                "Save"
+              )}
+            </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }
