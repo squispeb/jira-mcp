@@ -37,7 +37,7 @@ type RequestAuthContext = { type: "static"; token: string } | UserAuthContext;
 
 const SESSION_HUB_NAME = "jira-mcp-session-hub";
 const DEFAULT_CORS_HEADERS =
-  "authorization,content-type,x-jira-base-url,x-jira-username,x-jira-api-token,mcp-session-id,mcp-protocol-version";
+  "authorization,content-type,x-jira-base-url,x-jira-username,x-jira-api-token,x-jira-project-key,mcp-session-id,mcp-protocol-version";
 
 export default {
   async fetch(request: Request, env: WorkerEnv): Promise<Response> {
@@ -111,6 +111,8 @@ export default {
             workspaceId: authContext.type === "user" ? authContext.workspaceId || null : null,
             userId: authContext.type === "user" ? authContext.userId : null,
             tokenId: authContext.type === "user" ? authContext.tokenId : null,
+            defaultProjectKey:
+              authContext.type === "user" ? authContext.defaultProjectKey || null : null,
           },
           { status: 200 },
         ),
@@ -257,6 +259,9 @@ function attachAuthHeaders(
     headers.set("x-auth-token-id", context.tokenId);
     if (context.workspaceId) {
       headers.set("x-auth-workspace-id", context.workspaceId);
+    }
+    if (context.defaultProjectKey) {
+      headers.set("x-jira-project-key", context.defaultProjectKey);
     }
   }
 
