@@ -26,6 +26,7 @@ const apiTokensTable = sqliteTable("api_tokens", {
   id: text("id").primaryKey(),
   userId: text("user_id").notNull(),
   workspaceId: text("workspace_id"),
+  defaultProjectKey: text("default_project_key"),
   tokenName: text("token_name").notNull(),
   tokenPrefix: text("token_prefix").notNull(),
   tokenHash: text("token_hash").notNull(),
@@ -59,6 +60,7 @@ type LoginPayload = {
   tokenName?: string;
   expiresInDays?: number;
   neverExpires?: boolean;
+  defaultProjectKey?: string;
 };
 
 type TokenCreatePayload = {
@@ -66,6 +68,7 @@ type TokenCreatePayload = {
   expiresInDays?: number;
   neverExpires?: boolean;
   workspaceId?: string;
+  defaultProjectKey?: string;
 };
 
 type TokenRevokePayload = {
@@ -89,6 +92,7 @@ export type UserAuthContext = {
   email: string;
   tokenId: string;
   workspaceId?: string;
+  defaultProjectKey?: string;
 };
 
 export type JiraWorkspaceCredentials = {
@@ -104,9 +108,7 @@ type SessionUserContext = {
   email: string;
 };
 
-type SessionUserResolver = (
-  request: Request,
-) => Promise<SessionUserContext | null>;
+type SessionUserResolver = (request: Request) => Promise<SessionUserContext | null>;
 
 const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 const MIN_PASSWORD_LENGTH = 10;
@@ -180,6 +182,11 @@ export class WorkerAuthService {
       return this.revokeToken(request);
     }
 
+    const tokenUpdateMatch = url.pathname.match(/^\/auth\/tokens\/([^/]+)$/);
+    if (tokenUpdateMatch && request.method === "PUT") {
+      return this.updateToken(request, tokenUpdateMatch[1]);
+    }
+
     if (url.pathname === "/auth/workspaces") {
       if (request.method === "GET") {
         return this.listWorkspaces(request);
@@ -198,6 +205,11 @@ export class WorkerAuthService {
       }
 
       return this.deleteWorkspace(request);
+    }
+
+    const workspaceProjectsMatch = url.pathname.match(/^\/auth\/workspaces\/([^/]+)\/projects$/);
+    if (workspaceProjectsMatch && request.method === "GET") {
+      return this.listWorkspaceProjects(request, workspaceProjectsMatch[1]);
     }
 
     return null;
@@ -223,12 +235,7 @@ export class WorkerAuthService {
         jiraApiTokenIv: jiraWorkspacesTable.jiraApiTokenIv,
       })
       .from(jiraWorkspacesTable)
-      .where(
-        and(
-          eq(jiraWorkspacesTable.id, workspaceId),
-          eq(jiraWorkspacesTable.userId, userId),
-        ),
-      )
+      .where(and(eq(jiraWorkspacesTable.id, workspaceId), eq(jiraWorkspacesTable.userId, userId)))
       .limit(1);
 
     const workspace = workspaceRows[0];
@@ -254,12 +261,7 @@ export class WorkerAuthService {
     await db
       .update(jiraWorkspacesTable)
       .set({ lastUsedAt: nowIso() })
-      .where(
-        and(
-          eq(jiraWorkspacesTable.id, workspaceId),
-          eq(jiraWorkspacesTable.userId, userId),
-        ),
-      );
+      .where(and(eq(jiraWorkspacesTable.id, workspaceId), eq(jiraWorkspacesTable.userId, userId)));
 
     return {
       workspaceId: workspace.id,
@@ -284,6 +286,7 @@ export class WorkerAuthService {
         tokenId: apiTokensTable.id,
         userId: apiTokensTable.userId,
         workspaceId: apiTokensTable.workspaceId,
+        defaultProjectKey: apiTokensTable.defaultProjectKey,
         email: usersTable.email,
       })
       .from(apiTokensTable)
@@ -292,10 +295,7 @@ export class WorkerAuthService {
         and(
           eq(apiTokensTable.tokenHash, tokenHash),
           isNull(apiTokensTable.revokedAt),
-          or(
-            isNull(apiTokensTable.expiresAt),
-            gt(apiTokensTable.expiresAt, now),
-          ),
+          or(isNull(apiTokensTable.expiresAt), gt(apiTokensTable.expiresAt, now)),
         ),
       )
       .limit(1);
@@ -317,6 +317,7 @@ export class WorkerAuthService {
       email: row.email,
       tokenId: row.tokenId,
       workspaceId: row.workspaceId || undefined,
+      defaultProjectKey: row.defaultProjectKey || undefined,
     };
   }
 
@@ -324,8 +325,7 @@ export class WorkerAuthService {
     const db = this.getDb();
     if (!db) {
       return jsonResponse(503, {
-        error:
-          "Auth is not configured. Bind a D1 database before using /auth routes.",
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
     }
 
@@ -384,8 +384,7 @@ export class WorkerAuthService {
     const db = this.getDb();
     if (!db) {
       return jsonResponse(503, {
-        error:
-          "Auth is not configured. Bind a D1 database before using /auth routes.",
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
     }
 
@@ -430,16 +429,17 @@ export class WorkerAuthService {
     }
 
     const tokenPlainText = `mcp_${randomBase64Url(32)}`;
-    const issuedToken = await this.issueToken(
-      user.id,
-      tokenPlainText,
-      tokenOptions.value,
-    );
+    const defaultProjectKey = payload.value.defaultProjectKey?.trim() || undefined;
+    const issuedToken = await this.issueToken(user.id, tokenPlainText, tokenOptions.value, {
+      workspaceId: null,
+      defaultProjectKey: defaultProjectKey ?? null,
+    });
 
     return jsonResponse(200, {
       token: issuedToken.token,
       tokenId: issuedToken.tokenId,
       workspaceId: issuedToken.workspaceId,
+      defaultProjectKey: issuedToken.defaultProjectKey,
       tokenName: issuedToken.tokenName,
       tokenPrefix: issuedToken.tokenPrefix,
       expiresAt: issuedToken.expiresAt,
@@ -470,8 +470,7 @@ export class WorkerAuthService {
     const db = this.getDb();
     if (!db) {
       return jsonResponse(503, {
-        error:
-          "Auth is not configured. Bind a D1 database before using /auth routes.",
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
     }
 
@@ -484,6 +483,7 @@ export class WorkerAuthService {
       .select({
         id: apiTokensTable.id,
         workspaceId: apiTokensTable.workspaceId,
+        defaultProjectKey: apiTokensTable.defaultProjectKey,
         tokenName: apiTokensTable.tokenName,
         tokenPrefix: apiTokensTable.tokenPrefix,
         createdAt: apiTokensTable.createdAt,
@@ -493,10 +493,7 @@ export class WorkerAuthService {
         workspaceName: jiraWorkspacesTable.workspaceName,
       })
       .from(apiTokensTable)
-      .leftJoin(
-        jiraWorkspacesTable,
-        eq(jiraWorkspacesTable.id, apiTokensTable.workspaceId),
-      )
+      .leftJoin(jiraWorkspacesTable, eq(jiraWorkspacesTable.id, apiTokensTable.workspaceId))
       .where(eq(apiTokensTable.userId, context.userId))
       .orderBy(desc(apiTokensTable.createdAt))
       .limit(100);
@@ -507,6 +504,7 @@ export class WorkerAuthService {
         id: token.id,
         workspaceId: token.workspaceId,
         workspaceName: token.workspaceName || null,
+        defaultProjectKey: token.defaultProjectKey || null,
         tokenName: token.tokenName,
         tokenPrefix: token.tokenPrefix,
         createdAt: token.createdAt,
@@ -522,8 +520,7 @@ export class WorkerAuthService {
     const db = this.getDb();
     if (!db) {
       return jsonResponse(503, {
-        error:
-          "Auth is not configured. Bind a D1 database before using /auth routes.",
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
     }
 
@@ -543,6 +540,7 @@ export class WorkerAuthService {
     }
 
     const workspaceId = payload.value.workspaceId?.trim() || null;
+    const defaultProjectKey = payload.value.defaultProjectKey?.trim() || null;
     if (workspaceId) {
       const workspaceRows = await db
         .select({ id: jiraWorkspacesTable.id })
@@ -563,19 +561,16 @@ export class WorkerAuthService {
     }
 
     const tokenPlainText = `mcp_${randomBase64Url(32)}`;
-    const issuedToken = await this.issueToken(
-      context.userId,
-      tokenPlainText,
-      tokenOptions.value,
-      {
-        workspaceId,
-      },
-    );
+    const issuedToken = await this.issueToken(context.userId, tokenPlainText, tokenOptions.value, {
+      workspaceId,
+      defaultProjectKey,
+    });
 
     return jsonResponse(201, {
       token: issuedToken.token,
       tokenId: issuedToken.tokenId,
       workspaceId: issuedToken.workspaceId,
+      defaultProjectKey: issuedToken.defaultProjectKey,
       tokenName: issuedToken.tokenName,
       tokenPrefix: issuedToken.tokenPrefix,
       expiresAt: issuedToken.expiresAt,
@@ -590,8 +585,7 @@ export class WorkerAuthService {
     const db = this.getDb();
     if (!db) {
       return jsonResponse(503, {
-        error:
-          "Auth is not configured. Bind a D1 database before using /auth routes.",
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
     }
 
@@ -613,12 +607,7 @@ export class WorkerAuthService {
     const tokens = await db
       .select({ id: apiTokensTable.id, revokedAt: apiTokensTable.revokedAt })
       .from(apiTokensTable)
-      .where(
-        and(
-          eq(apiTokensTable.id, tokenId),
-          eq(apiTokensTable.userId, context.userId),
-        ),
-      )
+      .where(and(eq(apiTokensTable.id, tokenId), eq(apiTokensTable.userId, context.userId)))
       .limit(1);
     const token = tokens[0];
 
@@ -638,12 +627,7 @@ export class WorkerAuthService {
     await db
       .update(apiTokensTable)
       .set({ revokedAt })
-      .where(
-        and(
-          eq(apiTokensTable.id, tokenId),
-          eq(apiTokensTable.userId, context.userId),
-        ),
-      );
+      .where(and(eq(apiTokensTable.id, tokenId), eq(apiTokensTable.userId, context.userId)));
 
     return jsonResponse(200, {
       tokenId,
@@ -652,12 +636,64 @@ export class WorkerAuthService {
     });
   }
 
+  private async updateToken(request: Request, tokenId: string): Promise<Response> {
+    const db = this.getDb();
+    if (!db) {
+      return jsonResponse(503, {
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
+      });
+    }
+
+    const context = await this.requireUserContext(request);
+    if (!context) {
+      return jsonResponse(401, { error: "Unauthorized" });
+    }
+
+    const payload = await readJson<{
+      defaultProjectKey?: string | null;
+    }>(request);
+    if (!payload.ok) {
+      return jsonResponse(400, { error: payload.error });
+    }
+
+    const tokens = await db
+      .select({ id: apiTokensTable.id, revokedAt: apiTokensTable.revokedAt })
+      .from(apiTokensTable)
+      .where(and(eq(apiTokensTable.id, tokenId), eq(apiTokensTable.userId, context.userId)))
+      .limit(1);
+    const token = tokens[0];
+
+    if (!token) {
+      return jsonResponse(404, { error: "Token not found for this user." });
+    }
+
+    if (token.revokedAt) {
+      return jsonResponse(400, {
+        error: "Cannot update a revoked token.",
+      });
+    }
+
+    const defaultProjectKey =
+      payload.value.defaultProjectKey === null
+        ? null
+        : payload.value.defaultProjectKey?.trim() || undefined;
+
+    await db
+      .update(apiTokensTable)
+      .set({ defaultProjectKey: defaultProjectKey ?? null })
+      .where(and(eq(apiTokensTable.id, tokenId), eq(apiTokensTable.userId, context.userId)));
+
+    return jsonResponse(200, {
+      tokenId,
+      defaultProjectKey: defaultProjectKey || null,
+    });
+  }
+
   private async listWorkspaces(request: Request): Promise<Response> {
     const db = this.getDb();
     if (!db) {
       return jsonResponse(503, {
-        error:
-          "Auth is not configured. Bind a D1 database before using /auth routes.",
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
     }
 
@@ -690,8 +726,7 @@ export class WorkerAuthService {
     const db = this.getDb();
     if (!db) {
       return jsonResponse(503, {
-        error:
-          "Auth is not configured. Bind a D1 database before using /auth routes.",
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
     }
 
@@ -793,8 +828,7 @@ export class WorkerAuthService {
     const db = this.getDb();
     if (!db) {
       return jsonResponse(503, {
-        error:
-          "Auth is not configured. Bind a D1 database before using /auth routes.",
+        error: "Auth is not configured. Bind a D1 database before using /auth routes.",
       });
     }
 
@@ -855,6 +889,45 @@ export class WorkerAuthService {
     });
   }
 
+  private async listWorkspaceProjects(request: Request, workspaceId: string): Promise<Response> {
+    const context = await this.requireUserContext(request);
+    if (!context) {
+      return jsonResponse(401, { error: "Unauthorized" });
+    }
+
+    const workspace = await this.getWorkspaceCredentialsForUser(context.userId, workspaceId);
+    if (!workspace) {
+      return jsonResponse(404, { error: "Workspace not found." });
+    }
+
+    try {
+      const auth = btoa(`${workspace.jiraUsername}:${workspace.jiraApiToken}`);
+      const resp = await fetch(`${workspace.jiraBaseUrl}/rest/api/3/project`, {
+        headers: { Authorization: `Basic ${auth}`, Accept: "application/json" },
+      });
+
+      if (!resp.ok) {
+        return jsonResponse(resp.status, {
+          error: `Jira API error: ${resp.statusText}`,
+        });
+      }
+
+      const projects: Array<{ key: string; name: string; id: string }> = await resp.json();
+
+      return jsonResponse(200, {
+        projects: projects.map((p) => ({
+          key: p.key,
+          name: p.name,
+          id: p.id,
+        })),
+      });
+    } catch (err) {
+      return jsonResponse(502, {
+        error: `Failed to fetch projects: ${err instanceof Error ? err.message : String(err)}`,
+      });
+    }
+  }
+
   private async getWorkspaceCryptoKey(): Promise<CryptoKey | null> {
     const secret = this.workspaceSecret?.trim();
     if (!secret || secret.length < MIN_WORKSPACE_SECRET_LENGTH) {
@@ -864,9 +937,7 @@ export class WorkerAuthService {
     return deriveWorkspaceCryptoKey(secret);
   }
 
-  private async requireUserContext(
-    request: Request,
-  ): Promise<UserAuthContext | null> {
+  private async requireUserContext(request: Request): Promise<UserAuthContext | null> {
     const token = getBearerToken(request);
     if (token) {
       return this.validateUserToken(token);
@@ -954,11 +1025,13 @@ export class WorkerAuthService {
     },
     scope: {
       workspaceId: string | null;
-    } = { workspaceId: null },
+      defaultProjectKey?: string | null;
+    } = { workspaceId: null, defaultProjectKey: null },
   ): Promise<{
     token: string;
     tokenId: string;
     workspaceId: string | null;
+    defaultProjectKey?: string | null;
     tokenName: string;
     tokenPrefix: string;
     expiresAt: string | null;
@@ -979,6 +1052,7 @@ export class WorkerAuthService {
       id: tokenId,
       userId,
       workspaceId: scope.workspaceId,
+      defaultProjectKey: scope.defaultProjectKey,
       tokenName,
       tokenPrefix,
       tokenHash,
@@ -992,6 +1066,7 @@ export class WorkerAuthService {
       token: tokenPlainText,
       tokenId,
       workspaceId: scope.workspaceId,
+      defaultProjectKey: scope.defaultProjectKey,
       tokenName,
       tokenPrefix,
       expiresAt,
@@ -1068,9 +1143,7 @@ function validateTokenOptions(options: {
     typeof requestedTtlDays === "number"
       ? Math.max(1, Math.min(MAX_TOKEN_TTL_DAYS, Math.floor(requestedTtlDays)))
       : DEFAULT_TOKEN_TTL_DAYS;
-  const expiresAt = new Date(
-    Date.now() + ttlDays * 24 * 60 * 60 * 1000,
-  ).toISOString();
+  const expiresAt = new Date(Date.now() + ttlDays * 24 * 60 * 60 * 1000).toISOString();
 
   return {
     ok: true,
@@ -1103,14 +1176,8 @@ function normalizeJiraBaseUrl(value: string | undefined): string | null {
 }
 
 async function deriveWorkspaceCryptoKey(secret: string): Promise<CryptoKey> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(secret),
-  );
-  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, [
-    "encrypt",
-    "decrypt",
-  ]);
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(secret));
+  return crypto.subtle.importKey("raw", digest, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
 }
 
 async function encryptSecret(
@@ -1214,10 +1281,7 @@ async function hashPassword(
 }
 
 async function hashToken(token: string): Promise<string> {
-  const digest = await crypto.subtle.digest(
-    "SHA-256",
-    new TextEncoder().encode(token),
-  );
+  const digest = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(token));
   return bytesToBase64Url(new Uint8Array(digest));
 }
 
@@ -1256,8 +1320,5 @@ function base64UrlToBytes(value: string): Uint8Array {
 }
 
 function toArrayBuffer(bytes: Uint8Array): ArrayBuffer {
-  return bytes.buffer.slice(
-    bytes.byteOffset,
-    bytes.byteOffset + bytes.byteLength,
-  ) as ArrayBuffer;
+  return bytes.buffer.slice(bytes.byteOffset, bytes.byteOffset + bytes.byteLength) as ArrayBuffer;
 }
