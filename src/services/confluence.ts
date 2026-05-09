@@ -90,7 +90,7 @@ export class ConfluenceService {
       queryParams.append("title", params.title);
     }
     if (params.spaceId) {
-      queryParams.append("spaceId", params.spaceId);
+      queryParams.append("space-id", params.spaceId);
     }
     if (params.status) {
       queryParams.append("status", params.status);
@@ -169,6 +169,8 @@ export class ConfluenceService {
     representation?: "storage" | "atlas_doc_format";
     status?: "current" | "draft";
   }): Promise<ConfluencePage> {
+    const versionNumber = params.version > 0 ? params.version + 1 : 1;
+
     const payload: ConfluencePageUpdateRequest = {
       id: params.id,
       title: params.title,
@@ -177,7 +179,7 @@ export class ConfluenceService {
         value: params.body,
       },
       version: {
-        number: params.version,
+        number: versionNumber,
         message: "Updated via MCP",
       },
       status: params.status ?? "current",
