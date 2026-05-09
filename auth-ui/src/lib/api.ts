@@ -34,6 +34,10 @@ export type ToolInfo = {
 
 export const AVAILABLE_TOOLS: ToolInfo[] = [
   { name: "get_issue", description: "Get detailed information about a Jira issue" },
+  {
+    name: "search_issues",
+    description: "Search Jira issues using JQL (supports filters, ordering, pagination)",
+  },
   { name: "add_comment", description: "Add a comment to an existing Jira issue" },
   { name: "add_issue_labels", description: "Add one or more labels to an existing Jira issue" },
   {
@@ -98,6 +102,46 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
     description: "Get detailed configuration and metadata for a specific board",
   },
   { name: "get_board_backlog", description: "Get issues from a board's backlog" },
+  {
+    name: "search_confluence_pages",
+    description: "Search Confluence pages by title, space, or status",
+  },
+  {
+    name: "get_confluence_page",
+    description: "Get detailed information about a Confluence page",
+  },
+  {
+    name: "get_confluence_page_ancestors",
+    description: "Get ancestor pages in the Confluence page hierarchy",
+  },
+  {
+    name: "get_confluence_page_children",
+    description: "Get direct child pages of a Confluence page",
+  },
+  { name: "create_confluence_page", description: "Create a new Confluence page" },
+  { name: "update_confluence_page", description: "Update an existing Confluence page" },
+  {
+    name: "link_confluence_page_to_jira_issue",
+    description: "Generate a Confluence page web URL for pasting into a Jira issue",
+  },
+  {
+    name: "find_confluence_pages_for_issue",
+    description: "Search Confluence pages that mention a Jira issue key",
+  },
+  {
+    name: "get_confluence_spaces",
+    description: "List Confluence spaces and resolve space keys to IDs",
+  },
+  {
+    name: "map_jira_project_to_confluence_space",
+    description: "Map a Jira project key to the matching Confluence space",
+  },
+  {
+    name: "search_confluence_pages_cql",
+    description:
+      "Advanced search using Confluence CQL (supports wildcards, space filters, type filters)",
+  },
+  { name: "delete_confluence_page", description: "Move a Confluence page to the trash" },
 ];
 
 export type McpResult = {
@@ -258,7 +302,7 @@ export async function initializeMcp(token: string): Promise<McpResult> {
       id: 1,
       method: "initialize",
       params: {
-        protocolVersion: "2025-06-18",
+        protocolVersion: "2025-11-25",
         capabilities: {},
         clientInfo: { name: "auth-ui", version: "1.0.0" },
       },
@@ -322,7 +366,7 @@ function createMcpHeaders(token: string, sessionId?: string): HeadersInit {
 
   if (sessionId) {
     headers["MCP-Session-Id"] = sessionId;
-    headers["MCP-Protocol-Version"] = "2025-06-18";
+    headers["MCP-Protocol-Version"] = "2025-11-25";
   }
 
   return headers;
