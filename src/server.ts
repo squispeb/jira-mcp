@@ -1346,15 +1346,29 @@ export class JiraMcpServer {
       {
         title: z.string().optional().describe("Text to search for in page titles"),
         spaceId: z.string().optional().describe("Confluence space ID to limit the search"),
+        spaceKey: z
+          .string()
+          .optional()
+          .describe("Confluence space key (e.g., 'ALFA'). Ignored if spaceId is provided"),
         limit: z.number().optional().describe("Maximum number of results (default: 25)"),
+        cursor: z
+          .string()
+          .optional()
+          .describe("Pagination cursor from a previous search response for next page"),
       },
-      async ({ title, spaceId, limit }) => {
+      async ({ title, spaceId, spaceKey, limit, cursor }) => {
         try {
-          console.log(`Searching Confluence pages: title=${title}, spaceId=${spaceId}`);
+          let resolvedSpaceId = spaceId;
+          if (!resolvedSpaceId && spaceKey) {
+            resolvedSpaceId = await this.confluenceService.resolveSpaceId(spaceKey);
+          }
+
+          console.log(`Searching Confluence pages: title=${title}, spaceId=${resolvedSpaceId}`);
           const response = await this.confluenceService.searchPages({
             title,
-            spaceId,
+            spaceId: resolvedSpaceId,
             limit,
+            cursor,
           });
           console.log(`Found ${response.results.length} Confluence pages`);
           return {
@@ -1400,6 +1414,35 @@ export class JiraMcpServer {
               {
                 type: "text",
                 text: `Error fetching Confluence spaces: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "search_confluence_pages_cql",
+      "Advanced search using Confluence CQL (Confluence Query Language). Supports operators like =, !=, ~, >, <, AND, OR. Example: space='ALFA' AND title~'Test*' OR type='blogpost'",
+      {
+        cql: z.string().describe("CQL query string (e.g., \"space='ALFA' AND title~'Test'\")"),
+        limit: z.number().optional().describe("Maximum number of results (default: 25)"),
+      },
+      async ({ cql, limit }) => {
+        try {
+          console.log(`CQL search: ${cql}`);
+          const response = await this.confluenceService.searchPagesWithCql(cql, limit);
+          console.log(`Found ${response.results.length} Confluence pages`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
+          };
+        } catch (error) {
+          console.error("Error searching Confluence pages with CQL:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error searching Confluence pages: ${formatToolError(error)}`,
               },
             ],
           };
@@ -1605,6 +1648,39 @@ export class JiraMcpServer {
               {
                 type: "text",
                 text: `Error updating Confluence page: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "delete_confluence_page",
+      "Move a Confluence page to the trash by ID",
+      {
+        pageId: z.string().describe("The ID of the Confluence page to delete"),
+      },
+      async ({ pageId }) => {
+        try {
+          console.log(`Deleting Confluence page: ${pageId}`);
+          await this.confluenceService.deletePage(pageId);
+          console.log(`Successfully deleted Confluence page: ${pageId}`);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Confluence page ${pageId} moved to trash`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error deleting Confluence page ${pageId}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error deleting Confluence page: ${formatToolError(error)}`,
               },
             ],
           };

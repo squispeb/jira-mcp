@@ -30,7 +30,7 @@ export class ConfluenceService {
 
   private async request<T>(
     endpoint: string,
-    method: "GET" | "POST" | "PUT" = "GET",
+    method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
     data?: unknown,
   ): Promise<T> {
     try {
@@ -102,11 +102,32 @@ export class ConfluenceService {
     } else {
       queryParams.append("limit", "25");
     }
+    if (params.cursor) {
+      queryParams.append("cursor", params.cursor);
+    }
 
     const endpoint = `/wiki/api/v2/pages?${queryParams.toString()}`;
     const response = await this.request<ConfluencePageSearchResponse>(endpoint);
     await this.writeLog(`confluence-search-${new Date().toISOString()}.json`, response);
     return response;
+  }
+
+  async searchPagesWithCql(cql: string, limit: number = 25): Promise<ConfluencePageSearchResponse> {
+    const queryParams = new URLSearchParams();
+    queryParams.append("cql", cql);
+    queryParams.append("limit", String(limit));
+    queryParams.append("expand", "body.storage");
+
+    const endpoint = `/wiki/rest/api/content/search?${queryParams.toString()}`;
+    const response = await this.request<ConfluencePageSearchResponse>(endpoint);
+    await this.writeLog(`confluence-cql-search-${new Date().toISOString()}.json`, response);
+    return response;
+  }
+
+  async deletePage(pageId: string): Promise<void> {
+    const endpoint = `/wiki/api/v2/pages/${pageId}`;
+    await this.request<void>(endpoint, "DELETE");
+    await this.writeLog(`confluence-delete-page-${pageId}.json`, { pageId });
   }
 
   async getPage(

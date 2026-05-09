@@ -132,6 +132,12 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
     name: "map_jira_project_to_confluence_space",
     description: "Map a Jira project key to the matching Confluence space",
   },
+  {
+    name: "search_confluence_pages_cql",
+    description:
+      "Advanced search using Confluence CQL (supports wildcards, space filters, type filters)",
+  },
+  { name: "delete_confluence_page", description: "Move a Confluence page to the trash" },
 ];
 
 export type McpResult = {

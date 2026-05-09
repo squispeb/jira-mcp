@@ -100,6 +100,7 @@ export interface ConfluenceSearchParams {
   spaceId?: string;
   status?: string;
   limit?: number;
+  cursor?: string;
 }
 
 export interface ConfluenceCustomContentSearchResponse {
