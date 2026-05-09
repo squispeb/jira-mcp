@@ -1,11 +1,14 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
 import { z } from "zod";
 import { JiraLogSink, JiraService } from "./services/jira";
+import { ConfluenceLogSink, ConfluenceService } from "./services/confluence";
 import { Transport } from "@modelcontextprotocol/sdk/shared/transport.js";
 
 export class JiraMcpServer {
   private readonly server: McpServer;
   private readonly jiraService: JiraService;
+  private readonly confluenceService: ConfluenceService;
+  private readonly atlassianBaseUrl: string;
   private readonly defaultProjectKey?: string;
   private readonly allowedTools: ReadonlySet<string> | null;
 
@@ -15,7 +18,14 @@ export class JiraMcpServer {
     apiToken: string,
     options?: { logSink?: JiraLogSink; defaultProjectKey?: string; allowedTools?: string[] },
   ) {
-    this.jiraService = new JiraService(jiraUrl, username, apiToken, options?.logSink);
+    this.atlassianBaseUrl = jiraUrl.endsWith("/") ? jiraUrl.slice(0, -1) : jiraUrl;
+    this.jiraService = new JiraService(this.atlassianBaseUrl, username, apiToken, options?.logSink);
+    this.confluenceService = new ConfluenceService(
+      this.atlassianBaseUrl,
+      username,
+      apiToken,
+      options?.logSink as ConfluenceLogSink | undefined,
+    );
     this.defaultProjectKey = options?.defaultProjectKey;
     this.allowedTools =
       options?.allowedTools && options.allowedTools.length > 0
@@ -1321,6 +1331,279 @@ export class JiraMcpServer {
               {
                 type: "text",
                 text: `Error fetching board backlog: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    // --- Confluence tools ---
+
+    this.server.tool(
+      "search_confluence_pages",
+      "Search Confluence pages by title, space, or status",
+      {
+        title: z.string().optional().describe("Text to search for in page titles"),
+        spaceId: z.string().optional().describe("Confluence space ID to limit the search"),
+        limit: z.number().optional().describe("Maximum number of results (default: 25)"),
+      },
+      async ({ title, spaceId, limit }) => {
+        try {
+          console.log(`Searching Confluence pages: title=${title}, spaceId=${spaceId}`);
+          const response = await this.confluenceService.searchPages({
+            title,
+            spaceId,
+            limit,
+          });
+          console.log(`Found ${response.results.length} Confluence pages`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
+          };
+        } catch (error) {
+          console.error("Error searching Confluence pages:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error searching Confluence pages: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "get_confluence_page",
+      "Get detailed information about a Confluence page",
+      {
+        pageId: z.string().describe("The ID of the Confluence page to fetch"),
+      },
+      async ({ pageId }) => {
+        try {
+          console.log(`Fetching Confluence page: ${pageId}`);
+          const page = await this.confluenceService.getPage(pageId);
+          console.log(`Successfully fetched Confluence page: ${page.title}`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(page, null, 2) }],
+          };
+        } catch (error) {
+          console.error(`Error fetching Confluence page ${pageId}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error fetching Confluence page: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "get_confluence_page_ancestors",
+      "Get ancestor pages in the Confluence page hierarchy",
+      {
+        pageId: z.string().describe("The ID of the Confluence page to get ancestors for"),
+      },
+      async ({ pageId }) => {
+        try {
+          console.log(`Fetching Confluence page ancestors: ${pageId}`);
+          const ancestors = await this.confluenceService.getPageAncestors(pageId);
+          console.log(`Found ${ancestors.results.length} ancestors for page ${pageId}`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(ancestors, null, 2) }],
+          };
+        } catch (error) {
+          console.error(`Error fetching Confluence page ancestors for ${pageId}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error fetching Confluence page ancestors: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "get_confluence_page_children",
+      "Get direct child pages of a Confluence page",
+      {
+        pageId: z.string().describe("The ID of the Confluence parent page"),
+        limit: z.number().optional().describe("Maximum number of results (default: 25)"),
+      },
+      async ({ pageId, limit }) => {
+        try {
+          console.log(`Fetching Confluence page children: ${pageId}`);
+          const children = await this.confluenceService.getPageChildren(pageId, limit);
+          console.log(`Found ${children.results.length} children for page ${pageId}`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(children, null, 2) }],
+          };
+        } catch (error) {
+          console.error(`Error fetching Confluence page children for ${pageId}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error fetching Confluence page children: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "create_confluence_page",
+      "Create a new Confluence page",
+      {
+        spaceId: z.string().describe("Confluence space ID where the page will be created"),
+        title: z.string().min(1).describe("The title of the new page"),
+        body: z.string().min(1).describe("Page content in storage or atlas_doc_format"),
+        representation: z
+          .enum(["storage", "atlas_doc_format"])
+          .optional()
+          .describe("Content format representation (default: storage)"),
+        parentId: z.string().optional().describe("Optional parent page ID for hierarchy"),
+      },
+      async ({ spaceId, title, body, representation, parentId }) => {
+        try {
+          console.log(`Creating Confluence page: ${title} in space ${spaceId}`);
+          const page = await this.confluenceService.createPage({
+            spaceId,
+            title,
+            body,
+            representation,
+            parentId,
+          });
+          console.log(`Successfully created Confluence page: ${page.id}`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(page, null, 2) }],
+          };
+        } catch (error) {
+          console.error("Error creating Confluence page:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error creating Confluence page: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "update_confluence_page",
+      "Update an existing Confluence page",
+      {
+        pageId: z.string().describe("The ID of the Confluence page to update"),
+        title: z.string().min(1).describe("The new title for the page"),
+        body: z.string().min(1).describe("New page content in storage or atlas_doc_format"),
+        version: z.number().describe("Current version number of the page (required for conflict detection)"),
+        representation: z
+          .enum(["storage", "atlas_doc_format"])
+          .optional()
+          .describe("Content format representation (default: storage)"),
+      },
+      async ({ pageId, title, body, version, representation }) => {
+        try {
+          console.log(`Updating Confluence page: ${pageId} (v${version})`);
+          const page = await this.confluenceService.updatePage({
+            id: pageId,
+            title,
+            body,
+            version,
+            representation,
+          });
+          console.log(`Successfully updated Confluence page: ${page.id}`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(page, null, 2) }],
+          };
+        } catch (error) {
+          console.error(`Error updating Confluence page ${pageId}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error updating Confluence page: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "link_confluence_page_to_jira_issue",
+      "Generate a Confluence page web URL suitable for pasting into a Jira issue",
+      {
+        pageId: z.string().describe("The ID of the Confluence page to link"),
+      },
+      async ({ pageId }) => {
+        try {
+          console.log(`Generating link for Confluence page: ${pageId}`);
+          const page = await this.confluenceService.getPage(pageId);
+          const webUrl = this.confluenceService.getPageWebUrl(this.atlassianBaseUrl, page);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    pageId,
+                    pageTitle: page.title,
+                    webUrl,
+                    status: page.status,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error linking Confluence page ${pageId}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error linking Confluence page: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "find_confluence_pages_for_issue",
+      "Search Confluence pages that mention a Jira issue key in their title",
+      {
+        issueKey: z.string().describe("The Jira issue key to search for in Confluence (e.g., PROJECT-123)"),
+      },
+      async ({ issueKey }) => {
+        try {
+          console.log(`Searching Confluence pages for issue: ${issueKey}`);
+          const response = await this.confluenceService.findPagesLinkedToIssue(issueKey);
+          console.log(`Found ${response.results.length} pages referencing ${issueKey}`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
+          };
+        } catch (error) {
+          console.error(`Error finding Confluence pages for issue ${issueKey}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error finding Confluence pages: ${formatToolError(error)}`,
               },
             ],
           };
