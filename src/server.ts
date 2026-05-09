@@ -1375,6 +1375,39 @@ export class JiraMcpServer {
     );
 
     this.server.tool(
+      "get_confluence_spaces",
+      "List Confluence spaces and resolve space keys to IDs",
+      {
+        keys: z
+          .array(z.string())
+          .optional()
+          .describe("Space keys to filter by (e.g., ['SCRUM', 'DEV'])"),
+        type: z.string().optional().describe("Filter by space type (e.g., 'global', 'personal')"),
+        limit: z.number().optional().describe("Maximum number of results (default: 25)"),
+      },
+      async ({ keys, type, limit }) => {
+        try {
+          console.log(`Fetching Confluence spaces: keys=${keys?.join(",")}, type=${type}`);
+          const response = await this.confluenceService.getSpaces({ keys, type, limit });
+          console.log(`Found ${response.results.length} Confluence spaces`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
+          };
+        } catch (error) {
+          console.error("Error fetching Confluence spaces:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error fetching Confluence spaces: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
       "get_confluence_page",
       "Get detailed information about a Confluence page",
       {
@@ -1461,9 +1494,16 @@ export class JiraMcpServer {
 
     this.server.tool(
       "create_confluence_page",
-      "Create a new Confluence page",
+      "Create a new Confluence page in a space",
       {
-        spaceId: z.string().describe("Confluence space ID where the page will be created"),
+        spaceId: z
+          .string()
+          .optional()
+          .describe("Confluence space numeric ID (use get_confluence_spaces to discover)"),
+        spaceKey: z
+          .string()
+          .optional()
+          .describe("Confluence space key (e.g., 'PROJ', '~user'). Ignored if spaceId is provided"),
         title: z.string().min(1).describe("The title of the new page"),
         body: z.string().min(1).describe("Page content in storage or atlas_doc_format"),
         representation: z
@@ -1472,11 +1512,40 @@ export class JiraMcpServer {
           .describe("Content format representation (default: storage)"),
         parentId: z.string().optional().describe("Optional parent page ID for hierarchy"),
       },
-      async ({ spaceId, title, body, representation, parentId }) => {
+      async ({ spaceId, spaceKey, title, body, representation, parentId }) => {
         try {
-          console.log(`Creating Confluence page: ${title} in space ${spaceId}`);
+          let resolvedSpaceId = spaceId;
+
+          if (!resolvedSpaceId && spaceKey) {
+            console.log(`Resolving space key "${spaceKey}" to space ID...`);
+            resolvedSpaceId = await this.confluenceService.resolveSpaceId(spaceKey);
+            if (!resolvedSpaceId) {
+              return {
+                content: [
+                  {
+                    type: "text",
+                    text: `Space "${spaceKey}" not found. Use get_confluence_spaces to list available spaces.`,
+                  },
+                ],
+              };
+            }
+            console.log(`Resolved space key "${spaceKey}" to ID "${resolvedSpaceId}"`);
+          }
+
+          if (!resolvedSpaceId) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: "Either spaceId or spaceKey must be provided. Use get_confluence_spaces to find space IDs.",
+                },
+              ],
+            };
+          }
+
+          console.log(`Creating Confluence page: ${title} in space ${resolvedSpaceId}`);
           const page = await this.confluenceService.createPage({
-            spaceId,
+            spaceId: resolvedSpaceId,
             title,
             body,
             representation,
@@ -1608,6 +1677,79 @@ export class JiraMcpServer {
               {
                 type: "text",
                 text: `Error finding Confluence pages: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "map_jira_project_to_confluence_space",
+      "Map a Jira project key to the matching Confluence space (Jira projects often share the same key with a Confluence space)",
+      {
+        projectKey: z.string().describe("The Jira project key to map (e.g., PROJ)"),
+      },
+      async ({ projectKey }) => {
+        try {
+          console.log(`Mapping Jira project key "${projectKey}" to Confluence space`);
+          const spaces = await this.confluenceService.getSpaces({
+            keys: [projectKey],
+            status: "current",
+          });
+          if (spaces.results.length === 0) {
+            const allSpaces = await this.confluenceService.getSpaces({ limit: 50 });
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(
+                    {
+                      projectKey,
+                      match: null,
+                      hint: `No Confluence space with key "${projectKey}" found. Here are all available spaces.`,
+                      allSpaces: allSpaces.results.map((s) => ({
+                        id: s.id,
+                        key: s.key,
+                        name: s.name,
+                        type: s.type,
+                      })),
+                    },
+                    null,
+                    2,
+                  ),
+                },
+              ],
+            };
+          }
+          const space = spaces.results[0];
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    projectKey,
+                    match: {
+                      spaceId: space.id,
+                      spaceKey: space.key,
+                      spaceName: space.name,
+                      webUrl: `${this.atlassianBaseUrl}${space._links.webui}`,
+                    },
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error mapping project ${projectKey} to Confluence space:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error mapping project to Confluence space: ${formatToolError(error)}`,
               },
             ],
           };

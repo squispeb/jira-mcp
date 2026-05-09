@@ -6,6 +6,7 @@ import {
   ConfluencePageSearchResponse,
   ConfluencePageUpdateRequest,
   ConfluenceSearchParams,
+  ConfluenceSpaceSearchResponse,
 } from "~/types/confluence";
 
 export type ConfluenceLogSink = (name: string, value: unknown) => Promise<void> | void;
@@ -46,10 +47,17 @@ export class ConfluenceService {
       });
 
       if (!response.ok) {
-        const errorBody = await response.json().catch(() => undefined);
+        const text = await response.text();
+        let parsed: unknown;
+        try {
+          parsed = JSON.parse(text);
+        } catch {
+          parsed = text;
+        }
         throw {
           status: response.status,
-          err: formatConfluenceErrorMessage(errorBody, response.statusText),
+          err: formatConfluenceErrorMessage(parsed, response.statusText),
+          body: parsed,
         } as ConfluenceError;
       }
 
@@ -181,6 +189,44 @@ export class ConfluenceService {
     return response;
   }
 
+  async getSpaces(params?: {
+    keys?: string[];
+    type?: string;
+    status?: string;
+    limit?: number;
+  }): Promise<ConfluenceSpaceSearchResponse> {
+    const queryParams = new URLSearchParams();
+    if (params?.keys?.length) {
+      queryParams.append("keys", params.keys.join(","));
+    }
+    if (params?.type) {
+      queryParams.append("type", params.type);
+    }
+    if (params?.status) {
+      queryParams.append("status", params.status);
+    } else {
+      queryParams.append("status", "current");
+    }
+    if (params?.limit) {
+      queryParams.append("limit", String(params.limit));
+    } else {
+      queryParams.append("limit", "25");
+    }
+
+    const endpoint = `/wiki/api/v2/spaces?${queryParams.toString()}`;
+    const response = await this.request<ConfluenceSpaceSearchResponse>(endpoint);
+    await this.writeLog(`confluence-spaces-${new Date().toISOString()}.json`, response);
+    return response;
+  }
+
+  async resolveSpaceId(spaceKey: string): Promise<string | undefined> {
+    const response = await this.getSpaces({ keys: [spaceKey], status: "current" });
+    if (response.results.length === 0) {
+      return undefined;
+    }
+    return response.results[0].id;
+  }
+
   async findPagesLinkedToIssue(issueKey: string): Promise<ConfluencePageSearchResponse> {
     return this.searchPages({ title: issueKey });
   }
@@ -199,29 +245,39 @@ export class ConfluenceService {
 interface ConfluenceError {
   status: number;
   err: string;
+  body?: unknown;
 }
 
 interface ConfluenceErrorBody {
   message?: unknown;
+  errors?: unknown;
+  errorMessages?: unknown;
   data?: {
     errors?: unknown;
     errorMessages?: unknown;
   };
 }
 
-function toBase64(value: string): string {
-  if (typeof btoa === "function") {
-    return btoa(value);
-  }
-  return Buffer.from(value, "utf8").toString("base64");
-}
-
 function formatConfluenceErrorMessage(errorBody: unknown, statusText: string): string {
   const parsed = isConfluenceErrorBody(errorBody) ? errorBody : undefined;
 
-  const topLevelMessages = Array.isArray(parsed?.data?.errorMessages)
+  const confluencErrors = Array.isArray(parsed?.errors)
+    ? parsed.errors.filter(isErrorObject).map((e) => {
+        const detail = typeof e.detail === "string" ? e.detail : "";
+        const title = typeof e.title === "string" ? e.title : "";
+        return title || detail || JSON.stringify(e);
+      })
+    : [];
+
+  const topLevelMessagesV2 = Array.isArray(parsed?.errorMessages)
+    ? parsed.errorMessages.filter(isNonEmptyString)
+    : [];
+
+  const topLevelMessagesV1 = Array.isArray(parsed?.data?.errorMessages)
     ? parsed.data.errorMessages.filter(isNonEmptyString)
     : [];
+
+  const allMessages = [...confluencErrors, ...topLevelMessagesV2, ...topLevelMessagesV1];
 
   const fieldMessages = isStringRecord(parsed?.data?.errors)
     ? Object.entries(parsed.data.errors)
@@ -229,8 +285,8 @@ function formatConfluenceErrorMessage(errorBody: unknown, statusText: string): s
         .map(([field, message]) => `${field}: ${message}`)
     : [];
 
-  if (topLevelMessages.length > 0 || fieldMessages.length > 0) {
-    return [...topLevelMessages, ...fieldMessages].join(" | ");
+  if (allMessages.length > 0 || fieldMessages.length > 0) {
+    return [...allMessages, ...fieldMessages].join(" | ");
   }
 
   if (isNonEmptyString(parsed?.message)) {
@@ -242,6 +298,13 @@ function formatConfluenceErrorMessage(errorBody: unknown, statusText: string): s
   }
 
   return statusText || "Unknown error";
+}
+
+function toBase64(value: string): string {
+  if (typeof btoa === "function") {
+    return btoa(value);
+  }
+  return Buffer.from(value, "utf8").toString("base64");
 }
 
 function isConfluenceErrorBody(value: unknown): value is ConfluenceErrorBody {
@@ -257,6 +320,10 @@ function isStringRecord(value: unknown): value is Record<string, string> {
 
 function isNonEmptyString(value: unknown): value is string {
   return typeof value === "string" && value.trim().length > 0;
+}
+
+function isErrorObject(value: unknown): value is Record<string, unknown> {
+  return !!value && typeof value === "object" && !Array.isArray(value);
 }
 
 function isConfluenceError(value: unknown): value is ConfluenceError {

@@ -124,6 +124,14 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
     name: "find_confluence_pages_for_issue",
     description: "Search Confluence pages that mention a Jira issue key",
   },
+  {
+    name: "get_confluence_spaces",
+    description: "List Confluence spaces and resolve space keys to IDs",
+  },
+  {
+    name: "map_jira_project_to_confluence_space",
+    description: "Map a Jira project key to the matching Confluence space",
+  },
 ];
 
 export type McpResult = {

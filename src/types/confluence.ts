@@ -123,3 +123,32 @@ export interface ConfluenceCustomContent {
     self: string;
   };
 }
+
+export interface ConfluenceSpace {
+  id: string;
+  key: string;
+  name: string;
+  type: string;
+  status: string;
+  authorId: string;
+  createdAt: string;
+  homepageId?: string;
+  description?: {
+    plain: {
+      value: string;
+      representation: "plain";
+    };
+  };
+  _links: {
+    webui: string;
+    self: string;
+  };
+}
+
+export interface ConfluenceSpaceSearchResponse {
+  results: ConfluenceSpace[];
+  _links: {
+    next?: string;
+    base: string;
+  };
+}
