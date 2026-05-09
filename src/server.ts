@@ -45,11 +45,44 @@ export class JiraMcpServer {
   }
 
   private registerTools(): void {
+    const toolAnnotations: Record<
+      string,
+      { readOnlyHint?: boolean; destructiveHint?: boolean; idempotentHint?: boolean }
+    > = {
+      get_: { readOnlyHint: true },
+      search_: { readOnlyHint: true },
+      find_: { readOnlyHint: true },
+      map_: { readOnlyHint: true },
+      link_confluence: { readOnlyHint: true },
+      delete_: { destructiveHint: true },
+      remove_: { destructiveHint: true },
+      complete_: { destructiveHint: true },
+    };
+
+    function resolveAnnotations(name: string): Record<string, boolean> | undefined {
+      for (const [prefix, annotations] of Object.entries(toolAnnotations)) {
+        if (name.startsWith(prefix)) return annotations;
+      }
+      return undefined;
+    }
+
     // Filter tool registrations to only include allowed tools
     const originalTool = this.server.tool.bind(this.server);
     const isAllowed = this.isToolAllowed.bind(this);
     this.server.tool = ((name: string, ...args: unknown[]) => {
       if (!isAllowed(name)) return this.server;
+
+      const annotations = resolveAnnotations(name);
+      if (annotations) {
+        const cb = args[args.length - 1];
+        if (typeof cb === "function") {
+          const argCount = typeof args[0] === "string" ? 3 : 2;
+          if (args.length === argCount) {
+            args.splice(-1, 0, annotations);
+          }
+        }
+      }
+
       // eslint-disable-next-line @typescript-eslint/no-unsafe-argument
       return (originalTool as (...a: unknown[]) => unknown)(name, ...args);
     }) as typeof this.server.tool;
