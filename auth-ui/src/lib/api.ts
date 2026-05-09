@@ -302,7 +302,7 @@ export async function initializeMcp(token: string): Promise<McpResult> {
       id: 1,
       method: "initialize",
       params: {
-        protocolVersion: "2025-06-18",
+        protocolVersion: "2025-11-25",
         capabilities: {},
         clientInfo: { name: "auth-ui", version: "1.0.0" },
       },
@@ -366,7 +366,7 @@ function createMcpHeaders(token: string, sessionId?: string): HeadersInit {
 
   if (sessionId) {
     headers["MCP-Session-Id"] = sessionId;
-    headers["MCP-Protocol-Version"] = "2025-06-18";
+    headers["MCP-Protocol-Version"] = "2025-11-25";
   }
 
   return headers;

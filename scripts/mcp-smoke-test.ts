@@ -28,7 +28,7 @@ async function main() {
       id: 1,
       method: "initialize",
       params: {
-        protocolVersion: "2025-06-18",
+        protocolVersion: "2025-11-25",
         capabilities: {},
         clientInfo: {
           name: "mcp-smoke-test",
@@ -48,7 +48,7 @@ async function main() {
   const sessionHeaders = {
     ...headers,
     "MCP-Session-Id": sessionId,
-    "MCP-Protocol-Version": "2025-06-18",
+    "MCP-Protocol-Version": "2025-11-25",
   };
 
   const initializedResponse = await fetch(env.JIRA_MCP_URL, {
