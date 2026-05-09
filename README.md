@@ -1,591 +1,233 @@
-[![MseeP.ai Security Assessment Badge](https://mseep.net/pr/rahulthedevil-jira-context-mcp-badge.png)](https://mseep.ai/app/rahulthedevil-jira-context-mcp)
+# Jira + Confluence MCP Server
 
-# Jira Context MCP
+[![CodeQL Advanced](https://github.com/Creax-AI/jira-mcp/actions/workflows/codeql.yml/badge.svg)](https://github.com/Creax-AI/jira-mcp/actions/workflows/codeql.yml)
 
-[![CodeQL Advanced](https://github.com/rahulthedevil/Jira-Context-MCP/actions/workflows/codeql.yml/badge.svg)](https://github.com/rahulthedevil/Jira-Context-MCP/actions/workflows/codeql.yml)
-[![Verified on MseeP](https://mseep.ai/badge.svg)](https://mseep.ai/app/d3bb0c74-58fd-4683-a3c7-99cc0342eecc)
+A Model Context Protocol (MCP) server that integrates Jira and Confluence, allowing LLMs to interact with both Atlassian products through a single API. Built for Cloudflare Workers + Durable Objects.
 
-<figure>
-    <a href="https://glama.ai/mcp/servers/a8ob8depqc">
-     <img width="380" height="200" src="https://glama.ai/mcp/servers/a8ob8depqc/badge" />
-   </a>
-</figure>
+## Features
 
-A Model Context Protocol (MCP) implementation for Jira that allows you to:
+**Jira:**
+- Fetch issues, epics, sprints, boards, projects
+- Search issues with arbitrary JQL
+- Create issues, epics, sprints
+- Add/remove labels, comments, transitions
+- Link issues (blocks, duplicates, relates)
+- Assign issues, search users
+- Per-token tool allowlisting
 
-- Input a Jira ticket link to fetch issue details and instruct Cursor to fix it
-- Retrieve all tickets assigned to you within a specified Jira project
-- Filter Jira issues based on a specific issue type and automatically direct Cursor to resolve them
-- Manage epics: create new epics, link issues to epics, and view epic hierarchies
-- Update issue workflows: transition issues and add comments without leaving your IDE
-- Focus on pending work by filtering out completed tasks
-- Integrate seamlessly with Jira's API for automation and efficiency
+**Confluence:**
+- Search pages by title, space, or CQL
+- Read page content with body (storage format)
+- Navigate page hierarchy (ancestors, children)
+- Create and update pages (accepts `spaceKey` or `spaceId`)
+- Delete/trash pages
+- Map Jira project keys to Confluence spaces
+- Link Confluence pages to Jira issues
 
 ## Setup
 
 ### Prerequisites
 
-- Node.js 20.17.0 or higher
-- A Jira account with API access
-- A Jira API token (can be generated at [Atlassian API Tokens](https://id.atlassian.com/manage-profile/security/api-tokens))
+- [Bun](https://bun.sh) 1.x
+- An Atlassian Cloud account with Jira + Confluence access
+- An [Atlassian API token](https://id.atlassian.com/manage-profile/security/api-tokens)
 
 ### Installation
 
-1. Clone this repository:
-
-   ```bash
-   git clone https://github.com/yourusername/Jira-Context-MCP.git
-   cd Jira-Context-MCP
-   ```
-
-2. Install dependencies:
-
-   ```bash
-   npm install
-   # or if you use pnpm
-   pnpm install
-   ```
-
-3. Create a `.env` file based on the example:
-
-   ```bash
-   cp .env.example .env
-   ```
-
-4. Edit the `.env` file with your server auth token:
-   ```
-   MCP_AUTH_TOKEN=change-me
-   HTTP_PORT=3000
-   ```
-
-### Build
-
-Build the project with:
-
 ```bash
-npm run build
-# or
-pnpm build
+git clone https://github.com/Creax-AI/jira-mcp.git
+cd jira-mcp
+bun install
 ```
 
-## Usage
+### Running Locally (Worker + Auth UI)
 
-### Starting the Server
-
-Start the HTTP server:
+1. Create a local dev file:
 
 ```bash
-npm start
-# or
-pnpm start
+cat > .dev.vars <<'EOF'
+MCP_INTERNAL_SIGNING_SECRET=change-me-with-32-plus-characters
+EOF
 ```
 
-Note: In HTTP mode, Jira credentials are provided by each client via headers. The server does not read `JIRA_*` from `.env`.
-
-Or use the CLI mode:
+2. Start the worker and auth UI:
 
 ```bash
-npm run start:cli
-# or
-pnpm start:cli
+bun run dev
 ```
 
-CLI mode expects `JIRA_BASE_URL`, `JIRA_USERNAME`, and `JIRA_API_TOKEN` to be provided via environment variables at invocation time.
+This starts:
+- Worker on `http://localhost:8787`
+- Auth UI on `http://localhost:5173`
 
-### Running on Cloudflare Workers (Durable Objects)
+3. Open `http://localhost:5173/auth` to register and create a token.
 
-This repository now includes a Worker runtime with Durable Object-backed MCP session handling for robust, stateful streamable HTTP support.
-
-1. Create a local dev file for Wrangler:
-
-   ```bash
-   cat > .dev.vars <<'EOF'
-   MCP_AUTH_TOKEN=change-me
-   MCP_INTERNAL_SIGNING_SECRET=change-me-with-32-plus-characters
-   EOF
-   ```
-
-2. Run locally:
-
-   ```bash
-   npm run dev:worker
-   ```
-
-3. Set deploy-time secret:
-
-   ```bash
-   npx wrangler secret put MCP_AUTH_TOKEN
-   npx wrangler secret put MCP_INTERNAL_SIGNING_SECRET
-   ```
-
-4. Deploy:
-
-   ```bash
-   npm run deploy:worker
-   ```
-
-Worker entrypoint: `src/runtimes/worker/entry.ts`
-
-Durable Object session manager: `src/runtimes/worker/session-do.ts`
-
-Optional end-to-end smoke test:
-
-```bash
-set -a && source .env.dev && set +a
-npm run smoke:worker
-```
-
-### User auth (register/login/token)
-
-The Worker runtime now supports user-based API tokens using D1.
-
-1. Create a D1 database:
-
-   ```bash
-   bunx wrangler d1 create jira_mcp_auth
-   ```
-
-2. Add a D1 binding to `wrangler.toml`:
-
-   ```toml
-   [[d1_databases]]
-   binding = "AUTH_DB"
-   database_name = "jira_mcp_auth"
-   database_id = "<DATABASE_ID_FROM_CREATE_OUTPUT>"
-   ```
-
-3. Apply schema:
-
-   ```bash
-   bunx wrangler d1 execute jira_mcp_auth --file migrations/auth/0001_init_auth.sql
-   ```
-
-4. Use auth endpoints:
-   - `POST /auth/register` with `{ "email": "...", "password": "..." }`
-   - `POST /auth/login` with `{ "email": "...", "password": "..." }`
-   - `GET /auth/me` with `Authorization: Bearer mcp_...`
-   - `GET /auth/tokens` with `Authorization: Bearer mcp_...`
-   - `POST /auth/tokens` with `Authorization: Bearer mcp_...`
-   - `POST /auth/tokens/revoke` with `Authorization: Bearer mcp_...` and `{ "tokenId": "..." }`
-
-`/auth/login` returns a per-user bearer token (`mcp_...`) that can be used for MCP requests.
-
-Token persistence behavior:
-
-- Tokens are stored in D1 and remain valid across Worker restarts and deploys.
-- Set `neverExpires: true` (or `expiresInDays: 0`) to issue non-expiring tokens.
-- Revoke tokens with `/auth/tokens/revoke` for immediate invalidation.
-
-If you prefer a browser flow instead of curl, open the auth console UI:
-
-- Run the React app:
-
-  ```bash
-  bun --cwd auth-ui install
-  bun run dev:auth-ui
-  ```
-
-- Open: `http://localhost:5173/auth`
-
-The Vite app uses React Router and proxies `/auth/register`, `/auth/login`, `/mcp`, and `/health` to your Worker runtime.
-
-Proxy target defaults to `http://localhost:8787` and can be changed with:
-
-```bash
-VITE_PROXY_TARGET=https://jira-context-mcp-preview.contacto-80f.workers.dev bun run dev:auth-ui
-```
-
-The auth console lets you register, login, copy user tokens, and run a quick MCP initialize/tools test.
-
-To publish the UI inside the Worker, build and deploy with assets:
+## Deploy
 
 ```bash
 bun run deploy:worker:with-ui
 ```
 
-Preview deploy with UI assets:
+Preview deploy:
 
 ```bash
 bun run deploy:worker:preview:with-ui
 ```
 
-Published UI path:
+Set secrets before deploying:
 
-- Preview: `https://jira-context-mcp-preview.contacto-80f.workers.dev/auth`
-- Production: `https://jira-mcp-server.creax-ai.com/auth`
+```bash
+bunx wrangler secret put MCP_INTERNAL_SIGNING_SECRET
+```
 
-### Connecting with Cursor
+## Usage
 
-1. In Cursor, open the Command Palette (Ctrl+Shift+P or Cmd+Shift+P)
-2. Type **"Connect to MCP Server"**
-3. Select **"Connect to MCP Server"**
-4. Enter the server URL (recommended: `http://localhost:3000/mcp` for Node or `http://localhost:8787/mcp` for Worker dev)
-5. Configure these headers in your MCP client (required for HTTP mode):
-   ```
-   Authorization: Bearer <MCP_AUTH_TOKEN>
-   X-Jira-Base-Url: https://your-domain.atlassian.net
-   X-Jira-Username: your-email@example.com
-   X-Jira-Api-Token: your-api-token-here
-   ```
+### Authentication
 
-If your MCP client cannot send Jira headers, you can pass Jira parameters as query parameters on `/mcp` (less secure):
-`http://localhost:3000/mcp?jiraBaseUrl=...&jiraUsername=...&jiraApiToken=...`
+1. Open the auth UI at `/auth`
+2. Register with email + password
+3. Create a workspace (Atlassian base URL, email, API token)
+4. Generate an `mcp_...` token (optionally restrict to specific tools)
 
-For manual `curl` testing with streamable HTTP, include both content types in `Accept`:
-`Accept: application/json, text/event-stream`
+### MCP Client Configuration
+
+Use the `mcp_...` token as a Bearer token:
+
+```json
+{
+  "mcpServers": {
+    "jira-confluence": {
+      "url": "https://your-worker.workers.dev/mcp",
+      "headers": {
+        "Authorization": "Bearer mcp_..."
+      }
+    }
+  }
+}
+```
 
 ## Available Tools
 
-Once connected, you can use the following tools in Cursor:
-
-### 1. Get Jira Issue Details
-
-Fetch detailed information about a specific Jira issue:
-
-```
-/get_issue issueKey:PROJECT-123
-```
-
-### 2. Get Assigned Issues
-
-Retrieve issues assigned to you in a specific project:
-
-```
-/get_assigned_issues projectKey:PROJECT maxResults:10
-```
-
-### 3. Get Issues by Type
-
-Filter issues by type (Bug, Story, Epic, etc.):
-
-```
-/get_issues_by_type issueType:Bug projectKey:PROJECT maxResults:10
-```
-
-### 4. Get Projects
-
-List all available projects:
-
-```
-/get_projects
-```
-
-### 5. Get Issue Types
-
-List all available issue types:
-
-```
-/get_issue_types
-```
-
-### 6. Get Pending Assigned Issues
-
-Retrieve only incomplete issues assigned to you (excludes Done status):
-
-```
-/get_pending_assigned_issues projectKey:PROJECT maxResults:10
-```
-
-### 7. Get Epics
-
-Retrieve all epic issues from a project:
-
-```
-/get_epics projectKey:PROJECT maxResults:10
-```
-
-### 8. Get Epic Children
-
-Get all child issues belonging to a specific epic:
-
-```
-/get_epic_children epicKey:PROJECT-123 maxResults:50
-```
-
-### 9. Add Comment
-
-Add a comment to an existing Jira issue:
-
-```
-/add_comment issueKey:PROJECT-123 comment:"Updated the implementation as discussed"
-```
-
-### 10. Get Issue Transitions
-
-List all available workflow transitions for an issue:
-
-```
-/get_issue_transitions issueKey:PROJECT-123
-```
-
-### 11. Transition Issue
-
-Move an issue to a different status using a transition ID:
-
-```
-/transition_issue issueKey:PROJECT-123 transitionId:31
-```
-
-### 12. Create Epic
-
-Create a new epic in a project:
-
-```
-/create_epic projectKey:PROJECT summary:"Q1 2024 Features" description:"Epic for all Q1 feature development"
-```
-
-### 13. Create Issue with Parent
-
-Create a new issue linked to a parent epic:
-
-```
-/create_issue_with_parent projectKey:PROJECT issueType:Story summary:"Implement user authentication" parentKey:PROJECT-100 description:"Add OAuth2 login flow"
-```
-
-### 14. Set Parent Issue
-
-Link an issue to a parent (works for epic→issue and issue→subtask relationships):
-
-```
-/set_parent_issue issueKey:PROJECT-456 parentKey:PROJECT-100
-```
-
-### 15. Update Issue Description
-
-Replace the description of an existing Jira issue:
-
-```
-/update_issue_description issueKey:PROJECT-123 description:"New detailed description with acceptance criteria"
-```
-
-### 16. Get Link Types
-
-Get all available issue link types to understand relationship options:
-
-```
-/get_link_types
-```
-
-This returns link types like:
-
-- **Blocks**: "Blocks" / "Blocked by"
-- **Duplicate**: "Duplicates" / "Duplicated by"
-- **Relates**: "Relates to" / "Relates to"
-
-### 17. Link Issues
-
-Create a relationship between two issues (blocks, relates to, duplicates, etc.):
-
-```
-/link_issues inwardIssue:PROJECT-105 outwardIssue:PROJECT-54 linkType:"Blocks" comment:"Bug fix must be completed before feature"
-```
-
-**Note**: For "Blocks" links, the inward issue is the one doing the blocking, and the outward issue is the one being blocked.
-
-## Command Examples
-
-🚀 **Jira MCP Server + Cursor IDE = Your AI-powered Jira assistant!** Here’s how it makes devs work smarter:
-
-📂 **"List all Jira projects I have access to"**  
-→ AI fetches all available projects instantly  
-No more searching manually!
-
-📋 **"List all issues in PROJECT"**  
-→ AI retrieves all open tickets  
-Stay organized without effort!
-
-🐛 **"Filter only Bugs or Change Requests and fix them"**  
-→ AI identifies & directs Cursor to resolve them  
-Fix issues faster with automation!
-
-✅ **"Find all tickets assigned to me and fix them"**  
-→ AI pulls your tasks & lets Cursor handle them  
-Stay on top of your work with zero hassle!
-
-🔍 **"Get details for Jira issue PROJECT-123"**  
-→ AI fetches full issue info in seconds  
-No more switching tabs!
-
-📊 **"What changed in tickets in the last 7 days in PROJECT?"**  
-→ AI tracks recent updates & highlights key changes  
-No more manually checking ticket histories!
-
-💬 **"Add a comment to PROJECT-123 saying 'Fixed in latest commit'"**  
-→ AI posts the comment directly to Jira  
-Update tickets without leaving your IDE!
-
-🎯 **"Show me all epics in PROJECT and their child issues"**  
-→ AI fetches epic hierarchy instantly  
-Understand project structure at a glance!
-
-📝 **"Create an epic called 'Mobile App Redesign' in PROJECT"**  
-→ AI creates the epic for you  
-Plan projects faster with automation!
-
-🔗 **"Link issue PROJECT-456 to parent PROJECT-100"**  
-→ AI sets parent relationship (works for epics or subtasks)  
-Organize your backlog with flexible hierarchies!
-
-⚡ **"Move PROJECT-123 to In Progress"**  
-→ AI transitions the issue through your workflow  
-Update statuses without switching contexts!
-
-🖊️ **"Rewrite the description for PROJECT-123 with the new acceptance criteria"**  
-→ AI replaces the issue description in Jira  
-Keep product docs and dev context in sync!
-
-🔗 **"Show me what link types are available"**  
-→ AI fetches all issue link types (Blocks, Relates, Duplicate, etc.)  
-Understand your relationship options!
-
-🚫 **"PROJECT-105 blocks PROJECT-54 because the bug needs to be fixed first"**  
-→ AI creates a "blocks" link between issues with a comment  
-Track dependencies and blockers automatically!
-
-🔥 **TL;DR:** Your AI now speaks Jira + Cursor! Fetch projects, filter issues, track changes, manage epics, link related issues, add comments, edit descriptions & fix bugs—all inside your IDE.  
-From backlog to bug fixes, MCP Server makes Jira work for you!
-
-## Example Workflows
-
-### Fix a Specific Bug
-
-1. Connect to the Jira MCP server in Cursor.
-2. Get the issue details:
-   ```
-   /get_issue issueKey:PROJECT-123
-   ```
-3. Review the issue details and instruct Cursor to fix it:
-   ```
-   Fix the bug described in PROJECT-123
-   ```
-
-### Work on Your Assigned Issues
-
-1. Connect to the Jira MCP server in Cursor.
-2. Retrieve your assigned issues:
-   ```
-   /get_assigned_issues projectKey:PROJECT
-   ```
-3. Ask Cursor to help with one of the issues:
-   ```
-   Help me solve the first issue in my assigned list
-   ```
-
-### Fix All Bugs in a Project
-
-1. Connect to the Jira MCP server in Cursor.
-2. Retrieve all bug issues:
-   ```
-   /get_issues_by_type issueType:Bug projectKey:PROJECT
-   ```
-3. Instruct Cursor:
-   ```
-   Help me fix these bugs one by one
-   ```
-
-### Review Recent Changes
-
-1. Connect to the Jira MCP server in Cursor.
-2. Retrieve recent ticket updates:
-   ```
-   /get_recent_changes projectKey:PROJECT maxDays:7
-   ```
-3. Review the changes to stay updated on modifications.
-
-### Plan and Track an Epic
-
-1. Connect to the Jira MCP server in Cursor.
-2. Create a new epic:
-   ```
-   /create_epic projectKey:PROJECT summary:"Q1 2024 Mobile Features" description:"All mobile app features for Q1"
-   ```
-3. Create child issues under the epic:
-   ```
-   /create_issue_with_parent projectKey:PROJECT issueType:Story summary:"Add push notifications" parentKey:PROJECT-100
-   ```
-4. Link existing issues to the epic:
-   ```
-   /set_parent_issue issueKey:PROJECT-456 parentKey:PROJECT-100
-   ```
-5. View all epic children to track progress:
-   ```
-   /get_epic_children epicKey:PROJECT-100
-   ```
-
-### Update Issue Status and Add Comments
-
-1. Connect to the Jira MCP server in Cursor.
-2. Get available transitions for an issue:
-   ```
-   /get_issue_transitions issueKey:PROJECT-123
-   ```
-3. Move the issue to a new status:
-   ```
-   /transition_issue issueKey:PROJECT-123 transitionId:31
-   ```
-4. Add a comment explaining the change:
-   ```
-   /add_comment issueKey:PROJECT-123 comment:"Moved to In Progress. Starting implementation today."
-   ```
-5. Update the description with latest details:
-   ```
-   /update_issue_description issueKey:PROJECT-123 description:"Implementation plan: 1) Add API validation 2) Update UI components 3) Add tests"
-   ```
-
-### Focus on Pending Work
-
-1. Connect to the Jira MCP server in Cursor.
-2. Get only your incomplete tasks:
-   ```
-   /get_pending_assigned_issues projectKey:PROJECT
-   ```
-3. Ask Cursor to help prioritize:
-   ```
-   Show me the highest priority pending issues and help me plan my day
-   ```
-
-### Link Related Issues and Track Dependencies
-
-1. Connect to the Jira MCP server in Cursor.
-2. Discover available link types:
-   ```
-   /get_link_types
-   ```
-3. Create a "blocks" relationship (e.g., bug fix must be completed before feature):
-   ```
-   /link_issues inwardIssue:PROJECT-105 outwardIssue:PROJECT-54 linkType:"Blocks" comment:"Bug in PPG calculation must be fixed before Matchweek Bonus feature"
-   ```
-4. Link duplicate issues:
-   ```
-   /link_issues inwardIssue:PROJECT-200 outwardIssue:PROJECT-198 linkType:"Duplicate"
-   ```
-5. Relate issues that should be worked on together:
-   ```
-   /link_issues inwardIssue:PROJECT-50 outwardIssue:PROJECT-51 linkType:"Relates"
-   ```
-
-**Note**: For "Blocks" links, the inward issue blocks the outward issue. So if PROJECT-105 blocks PROJECT-54, you cannot complete PROJECT-54 until PROJECT-105 is done.
+### Jira - Issues
+
+| Tool | Description |
+|------|-------------|
+| `get_issue` | Get detailed information about a Jira issue |
+| `search_issues` | Search issues with raw JQL (supports ORDER BY, pagination) |
+| `get_assigned_issues` | Get issues assigned to the current user |
+| `get_pending_assigned_issues` | Get non-done issues assigned to the current user |
+| `get_issues_by_type` | Get issues of a specific type (Bug, Story, Epic, etc.) |
+| `add_comment` | Add a comment to an issue |
+| `add_issue_labels` | Add labels to an issue |
+| `remove_issue_labels` | Remove labels from an issue |
+| `transition_issue` | Move issue to a different status |
+| `get_issue_transitions` | List available workflow transitions |
+| `update_issue_description` | Replace an issue's description |
+| `assign_issue` | Assign issue to a workspace member |
+| `link_issues` | Link two issues (blocks, duplicates, relates) |
+| `get_link_types` | List available issue link types |
+| `search_users` | Search workspace users |
+
+### Jira - Epics
+
+| Tool | Description |
+|------|-------------|
+| `get_epics` | Get epics from a project |
+| `get_epic_children` | Get child issues of an epic |
+| `create_epic` | Create a new epic |
+| `create_issue_with_parent` | Create an issue linked to a parent epic |
+| `set_parent_issue` | Link an issue to a parent (epic or subtask) |
+
+### Jira - Sprints & Boards
+
+| Tool | Description |
+|------|-------------|
+| `get_projects` | List available Jira projects |
+| `get_issue_types` | List available issue types |
+| `get_board_issues` | Get all issues from a board |
+| `get_board_sprints` | Get sprints from a board |
+| `get_board_details` | Get board configuration and metadata |
+| `get_board_backlog` | Get backlog issues |
+| `get_project_sprints` | Get sprints for all boards in a project |
+| `get_sprint` | Get sprint details |
+| `get_project_sprint` | Validate sprint belongs to a project |
+| `get_sprint_issues` | Get issues in a sprint |
+| `create_sprint` | Create a new sprint |
+| `start_sprint` | Start a sprint (set to active) |
+| `complete_sprint` | Complete a sprint (set to closed) |
+| `add_issues_to_sprint` | Add issues to a sprint |
+| `remove_issues_from_sprint` | Move issues back to backlog |
+| `move_issues_to_board` | Rank issues on a board |
+
+### Confluence - Discovery
+
+| Tool | Description |
+|------|-------------|
+| `get_confluence_spaces` | List Confluence spaces by key or type |
+| `map_jira_project_to_confluence_space` | Match a Jira project key to its Confluence space |
+| `search_confluence_pages` | Search pages by title, space, or status |
+| `search_confluence_pages_cql` | Advanced search with Confluence CQL |
+| `get_confluence_page` | Get page details with body content |
+| `get_confluence_page_ancestors` | Get page hierarchy |
+| `get_confluence_page_children` | Get direct child pages |
+| `find_confluence_pages_for_issue` | Find pages mentioning a Jira issue key |
+
+### Confluence - Content Management
+
+| Tool | Description |
+|------|-------------|
+| `create_confluence_page` | Create a new page (by `spaceId` or `spaceKey`) |
+| `update_confluence_page` | Update an existing page |
+| `delete_confluence_page` | Move a page to trash |
+| `link_confluence_page_to_jira_issue` | Generate a Confluence URL for pasting into Jira |
+
+## Tool Annotations
+
+Destructive tools (`delete_*`, `remove_*`, `complete_*`) are annotated with `destructiveHint: true`. Read-only tools (`get_*`, `search_*`, `find_*`, `map_*`) are annotated with `readOnlyHint: true`. This helps LLMs understand which operations modify state.
+
+## Permissions
+
+Tokens can be restricted to a subset of tools via `allowedTools`. Confluence tools and Jira tools share the same auth model -- workspace credentials are reused for both products.
 
 ## Development
 
+```bash
+# Type-check
+bun run type-check
+
+# Lint
+bun run lint
+
+# Build
+bun run build
+
+# Dev (worker + auth UI)
+bun run dev
+```
+
 ### Project Structure
 
-- `src/` - Source code
-  - `services/` - Jira API service
-  - `types/` - TypeScript type definitions
-  - `utils/` - Utility functions
-  - `server.ts` - MCP server implementation
-  - `index.ts` - Application entry point
-  - `cli.ts` - CLI entry point
+```
+src/
+  services/
+    jira.ts            -- Jira REST API service
+    confluence.ts      -- Confluence Cloud v2 API service
+  types/
+    jira.ts            -- Jira type definitions
+    confluence.ts      -- Confluence type definitions
+  server.ts            -- MCP server with tool registration
+  index.ts             -- CLI entry point
+  cli.ts               -- CLI mode
+  runtimes/
+    worker/
+      entry.ts         -- Cloudflare Worker entry point
+      session-do.ts    -- Durable Object session handler
+      auth/            -- Better Auth integration with D1
 
-### Adding New Tools
-
-To add new tools, edit the `src/server.ts` file and add new tool definitions in the `registerTools` method.
+auth-ui/               -- React/Vite auth console
+docs/                  -- Architecture and integration docs
+```
 
 ## License
 
 MIT
-
-## Author
-
-Rahul Dey - [@rahulthedevil](https://github.com/rahulthedevil)
