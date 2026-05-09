@@ -98,6 +98,32 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
     description: "Get detailed configuration and metadata for a specific board",
   },
   { name: "get_board_backlog", description: "Get issues from a board's backlog" },
+  {
+    name: "search_confluence_pages",
+    description: "Search Confluence pages by title, space, or status",
+  },
+  {
+    name: "get_confluence_page",
+    description: "Get detailed information about a Confluence page",
+  },
+  {
+    name: "get_confluence_page_ancestors",
+    description: "Get ancestor pages in the Confluence page hierarchy",
+  },
+  {
+    name: "get_confluence_page_children",
+    description: "Get direct child pages of a Confluence page",
+  },
+  { name: "create_confluence_page", description: "Create a new Confluence page" },
+  { name: "update_confluence_page", description: "Update an existing Confluence page" },
+  {
+    name: "link_confluence_page_to_jira_issue",
+    description: "Generate a Confluence page web URL for pasting into a Jira issue",
+  },
+  {
+    name: "find_confluence_pages_for_issue",
+    description: "Search Confluence pages that mention a Jira issue key",
+  },
 ];
 
 export type McpResult = {

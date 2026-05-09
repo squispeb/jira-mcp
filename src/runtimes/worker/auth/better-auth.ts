@@ -123,7 +123,12 @@ async function getAuthInstance(
   authUiUrl?: string,
   resendApiKey?: string,
 ): Promise<BetterAuthLike> {
-  if (cachedAuthPromise && cachedAuthSecret === secret && cachedAuthUiUrl === (authUiUrl || "") && cachedResendApiKey === (resendApiKey || "")) {
+  if (
+    cachedAuthPromise &&
+    cachedAuthSecret === secret &&
+    cachedAuthUiUrl === (authUiUrl || "") &&
+    cachedResendApiKey === (resendApiKey || "")
+  ) {
     return cachedAuthPromise;
   }
 

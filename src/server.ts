@@ -1507,7 +1507,9 @@ export class JiraMcpServer {
         pageId: z.string().describe("The ID of the Confluence page to update"),
         title: z.string().min(1).describe("The new title for the page"),
         body: z.string().min(1).describe("New page content in storage or atlas_doc_format"),
-        version: z.number().describe("Current version number of the page (required for conflict detection)"),
+        version: z
+          .number()
+          .describe("Current version number of the page (required for conflict detection)"),
         representation: z
           .enum(["storage", "atlas_doc_format"])
           .optional()
@@ -1587,7 +1589,9 @@ export class JiraMcpServer {
       "find_confluence_pages_for_issue",
       "Search Confluence pages that mention a Jira issue key in their title",
       {
-        issueKey: z.string().describe("The Jira issue key to search for in Confluence (e.g., PROJECT-123)"),
+        issueKey: z
+          .string()
+          .describe("The Jira issue key to search for in Confluence (e.g., PROJECT-123)"),
       },
       async ({ issueKey }) => {
         try {
