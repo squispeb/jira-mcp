@@ -34,6 +34,10 @@ export type ToolInfo = {
 
 export const AVAILABLE_TOOLS: ToolInfo[] = [
   { name: "get_issue", description: "Get detailed information about a Jira issue" },
+  {
+    name: "search_issues",
+    description: "Search Jira issues using JQL (supports filters, ordering, pagination)",
+  },
   { name: "add_comment", description: "Add a comment to an existing Jira issue" },
   { name: "add_issue_labels", description: "Add one or more labels to an existing Jira issue" },
   {

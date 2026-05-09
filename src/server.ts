@@ -243,6 +243,53 @@ export class JiraMcpServer {
       },
     );
 
+    // Tool to search issues with JQL
+    this.server.tool(
+      "search_issues",
+      "Search Jira issues using JQL (Jira Query Language). Supports ORDER BY, field filtering, and pagination.",
+      {
+        jql: z
+          .string()
+          .describe(
+            "JQL query string (e.g., \"project = ALFA AND status = 'In Progress' ORDER BY created DESC\")",
+          ),
+        maxResults: z.number().optional().describe("Maximum number of results to return"),
+        fields: z
+          .array(z.string())
+          .optional()
+          .describe("Fields to return (e.g., ['summary', 'status', 'assignee'])"),
+        nextPageToken: z
+          .string()
+          .optional()
+          .describe("Token from previous response for pagination"),
+      },
+      async ({ jql, maxResults, fields, nextPageToken }) => {
+        try {
+          console.log(`Searching issues: ${jql}`);
+          const response = await this.jiraService.searchIssues({
+            jql,
+            maxResults,
+            fields,
+            nextPageToken,
+          });
+          console.log(`Found ${response.issues.length} issues`);
+          return {
+            content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
+          };
+        } catch (error) {
+          console.error("Error searching issues:", error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error searching issues: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
     // Tool to get epics
     this.server.tool(
       "get_epics",
