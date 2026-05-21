@@ -125,6 +125,10 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
     description: "Generate a Confluence page web URL for pasting into a Jira issue",
   },
   {
+    name: "link_confluence_page_to_issue",
+    description: "Add a Confluence page URL as a comment on a Jira issue",
+  },
+  {
     name: "find_confluence_pages_for_issue",
     description: "Search Confluence pages that mention a Jira issue key",
   },

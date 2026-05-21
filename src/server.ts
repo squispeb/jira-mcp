@@ -53,7 +53,7 @@ export class JiraMcpServer {
       search_: { readOnlyHint: true },
       find_: { readOnlyHint: true },
       map_: { readOnlyHint: true },
-      link_confluence: { readOnlyHint: true },
+      link_confluence_page_to_jira_issue: { readOnlyHint: true },
       delete_: { destructiveHint: true },
       remove_: { destructiveHint: true },
       complete_: { destructiveHint: true },
@@ -1803,6 +1803,52 @@ export class JiraMcpServer {
               {
                 type: "text",
                 text: `Error linking Confluence page: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "link_confluence_page_to_issue",
+      "Fetch a Confluence page and add its URL as a comment on a Jira issue, creating a visible link between them",
+      {
+        issueKey: z.string().describe("The Jira issue key to link to (e.g., PROJ-123)"),
+        pageId: z.string().describe("The ID of the Confluence page to link"),
+      },
+      async ({ issueKey, pageId }) => {
+        try {
+          console.log(`Linking Confluence page ${pageId} to issue ${issueKey}`);
+          const page = await this.confluenceService.getPage(pageId);
+          const webUrl = this.confluenceService.getPageWebUrl(this.atlassianBaseUrl, page);
+          const commentBody = `Related Confluence page: [${page.title}|${webUrl}]`;
+          const comment = await this.jiraService.addComment(issueKey, commentBody);
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    issueKey,
+                    pageId,
+                    pageTitle: page.title,
+                    webUrl,
+                    commentId: comment.id,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error linking Confluence page ${pageId} to issue ${issueKey}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error linking Confluence page to issue: ${formatToolError(error)}`,
               },
             ],
           };
