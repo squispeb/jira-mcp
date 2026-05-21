@@ -1812,7 +1812,7 @@ export class JiraMcpServer {
 
     this.server.tool(
       "link_confluence_page_to_issue",
-      "Fetch a Confluence page and add its URL as a comment on a Jira issue, creating a visible link between them",
+      'Add a Confluence page link to a Jira issue\'s "Linked work items" panel via the remote link API',
       {
         issueKey: z.string().describe("The Jira issue key to link to (e.g., PROJ-123)"),
         pageId: z.string().describe("The ID of the Confluence page to link"),
@@ -1822,8 +1822,11 @@ export class JiraMcpServer {
           console.log(`Linking Confluence page ${pageId} to issue ${issueKey}`);
           const page = await this.confluenceService.getPage(pageId);
           const webUrl = this.confluenceService.getPageWebUrl(this.atlassianBaseUrl, page);
-          const commentBody = `Related Confluence page: [${page.title}|${webUrl}]`;
-          const comment = await this.jiraService.addComment(issueKey, commentBody);
+          const remoteLink = await this.jiraService.addRemoteLink(issueKey, {
+            url: webUrl,
+            title: page.title,
+            type: "page",
+          });
           return {
             content: [
               {
@@ -1834,7 +1837,7 @@ export class JiraMcpServer {
                     pageId,
                     pageTitle: page.title,
                     webUrl,
-                    commentId: comment.id,
+                    remoteLinkId: remoteLink.id,
                   },
                   null,
                   2,

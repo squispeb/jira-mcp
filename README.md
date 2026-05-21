@@ -177,13 +177,13 @@ Use the `mcp_...` token as a Bearer token:
 
 ### Confluence - Content Management
 
-| Tool                                 | Description                                                          |
-| ------------------------------------ | -------------------------------------------------------------------- |
-| `create_confluence_page`             | Create a new page (by `spaceId` or `spaceKey`)                       |
-| `update_confluence_page`             | Update an existing page                                              |
-| `delete_confluence_page`             | Move a page to trash                                                 |
-| `link_confluence_page_to_jira_issue` | Generate a Confluence URL for pasting into Jira                      |
-| `link_confluence_page_to_issue`      | Fetch a Confluence page and add its URL as a comment on a Jira issue |
+| Tool                                 | Description                                                                 |
+| ------------------------------------ | --------------------------------------------------------------------------- |
+| `create_confluence_page`             | Create a new page (by `spaceId` or `spaceKey`)                              |
+| `update_confluence_page`             | Update an existing page                                                     |
+| `delete_confluence_page`             | Move a page to trash                                                        |
+| `link_confluence_page_to_jira_issue` | Generate a Confluence URL for pasting into Jira                             |
+| `link_confluence_page_to_issue`      | Link a Confluence page to a Jira issue (appears in Linked work items panel) |
 
 ## Tool Annotations
 

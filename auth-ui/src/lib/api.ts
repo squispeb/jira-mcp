@@ -126,7 +126,7 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
   },
   {
     name: "link_confluence_page_to_issue",
-    description: "Add a Confluence page URL as a comment on a Jira issue",
+    description: "Link a Confluence page to a Jira issue (appears in Linked work items panel)",
   },
   {
     name: "find_confluence_pages_for_issue",

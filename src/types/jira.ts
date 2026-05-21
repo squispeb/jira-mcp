@@ -453,3 +453,39 @@ export interface JiraBoardConfiguration {
     rankCustomFieldId: number;
   };
 }
+
+export interface JiraRemoteLinkRequest {
+  globalId: string;
+  application: {
+    type: string;
+    linkSays: string;
+  };
+  relationship?: string;
+  remoteObject: {
+    url: string;
+    title: string;
+    icon?: {
+      url16x16: string;
+    };
+    type?: string;
+  };
+}
+
+export interface JiraRemoteLinkResponse {
+  id: string;
+  self: string;
+  globalId: string;
+  application: {
+    type: string;
+    linkSays: string;
+  };
+  relationship?: string;
+  remoteObject: {
+    url: string;
+    title: string;
+    icon?: {
+      url16x16: string;
+    };
+    type?: string;
+  };
+}
