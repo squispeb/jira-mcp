@@ -249,6 +249,42 @@ export class JiraMcpServer {
     );
 
     this.server.tool(
+      "delete_issue",
+      "Delete a Jira issue permanently. Optionally deletes its subtasks as well.",
+      {
+        issueKey: z.string().describe("The Jira issue key to delete (e.g., PROJ-123)"),
+        deleteSubtasks: z
+          .boolean()
+          .optional()
+          .describe("If true, also deletes any subtasks (default: false)"),
+      },
+      async ({ issueKey, deleteSubtasks }) => {
+        try {
+          console.log(`Deleting issue ${issueKey}${deleteSubtasks ? " with subtasks" : ""}`);
+          await this.jiraService.deleteIssue(issueKey, deleteSubtasks);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Issue ${issueKey} deleted successfully${deleteSubtasks ? " (with subtasks)" : ""}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error deleting issue ${issueKey}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error deleting issue: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
       "get_issue_transitions",
       "List available workflow transitions for an issue",
       {

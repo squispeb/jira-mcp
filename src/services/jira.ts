@@ -52,7 +52,7 @@ export class JiraService {
 
   private async request<T>(
     endpoint: string,
-    method: "GET" | "POST" | "PUT" = "GET",
+    method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
     data?: any,
   ): Promise<T> {
     try {
@@ -650,6 +650,15 @@ export class JiraService {
         id: transitionId,
       },
     });
+  }
+
+  /**
+   * Delete an issue by key, optionally including its subtasks
+   */
+  async deleteIssue(issueKey: string, deleteSubtasks: boolean = false): Promise<void> {
+    const endpoint = `/rest/api/3/issue/${issueKey}${deleteSubtasks ? "?deleteSubtasks=true" : ""}`;
+    await this.request<void>(endpoint, "DELETE");
+    await this.writeLog(`jira-delete-${issueKey}.json`, { issueKey, deleteSubtasks });
   }
 
   /**
