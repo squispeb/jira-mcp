@@ -1934,12 +1934,14 @@ export class JiraMcpServer {
       async ({ projectKey }) => {
         try {
           console.log(`Mapping Jira project key "${projectKey}" to Confluence space`);
+
+          // First, try direct key match
           const spaces = await this.confluenceService.getSpaces({
             keys: [projectKey],
             status: "current",
           });
-          if (spaces.results.length === 0) {
-            const allSpaces = await this.confluenceService.getSpaces({ limit: 50 });
+          if (spaces.results.length > 0) {
+            const space = spaces.results[0];
             return {
               content: [
                 {
@@ -1947,14 +1949,13 @@ export class JiraMcpServer {
                   text: JSON.stringify(
                     {
                       projectKey,
-                      match: null,
-                      hint: `No Confluence space with key "${projectKey}" found. Here are all available spaces.`,
-                      allSpaces: allSpaces.results.map((s) => ({
-                        id: s.id,
-                        key: s.key,
-                        name: s.name,
-                        type: s.type,
-                      })),
+                      match: {
+                        spaceId: space.id,
+                        spaceKey: space.key,
+                        spaceName: space.name,
+                        webUrl: `${this.atlassianBaseUrl}${space._links.webui}`,
+                        matchType: "key",
+                      },
                     },
                     null,
                     2,
@@ -1963,7 +1964,40 @@ export class JiraMcpServer {
               ],
             };
           }
-          const space = spaces.results[0];
+
+          // Fall back to matching by project name
+          console.log(`No direct key match for "${projectKey}", trying name match...`);
+          const project = await this.jiraService.getProjectByKey(projectKey);
+          const allSpaces = await this.confluenceService.getSpaces({ limit: 50 });
+          const nameMatch = allSpaces.results.find(
+            (s) => s.name.toLowerCase() === project.name.toLowerCase(),
+          );
+
+          if (nameMatch) {
+            return {
+              content: [
+                {
+                  type: "text",
+                  text: JSON.stringify(
+                    {
+                      projectKey,
+                      projectName: project.name,
+                      match: {
+                        spaceId: nameMatch.id,
+                        spaceKey: nameMatch.key,
+                        spaceName: nameMatch.name,
+                        webUrl: `${this.atlassianBaseUrl}${nameMatch._links.webui}`,
+                        matchType: "name",
+                      },
+                    },
+                    null,
+                    2,
+                  ),
+                },
+              ],
+            };
+          }
+
           return {
             content: [
               {
@@ -1971,12 +2005,15 @@ export class JiraMcpServer {
                 text: JSON.stringify(
                   {
                     projectKey,
-                    match: {
-                      spaceId: space.id,
-                      spaceKey: space.key,
-                      spaceName: space.name,
-                      webUrl: `${this.atlassianBaseUrl}${space._links.webui}`,
-                    },
+                    projectName: project.name,
+                    match: null,
+                    hint: `No Confluence space found with key "${projectKey}" or name "${project.name}". Here are all available spaces.`,
+                    allSpaces: allSpaces.results.map((s) => ({
+                      id: s.id,
+                      key: s.key,
+                      name: s.name,
+                      type: s.type,
+                    })),
                   },
                   null,
                   2,

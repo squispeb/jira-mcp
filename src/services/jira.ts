@@ -671,6 +671,15 @@ export class JiraService {
   }
 
   /**
+   * Get a single project by its key
+   */
+  async getProjectByKey(projectKey: string): Promise<JiraProject> {
+    const endpoint = `/rest/api/3/project/${projectKey}`;
+    const response = await this.request<JiraProject>(endpoint);
+    return response;
+  }
+
+  /**
    * Get list of issue types
    */
   async getIssueTypes(): Promise<JiraIssueTypeResponse> {
