@@ -53,7 +53,7 @@ export class JiraMcpServer {
       search_: { readOnlyHint: true },
       find_: { readOnlyHint: true },
       map_: { readOnlyHint: true },
-      link_confluence: { readOnlyHint: true },
+      link_confluence_page_to_jira_issue: { readOnlyHint: true },
       delete_: { destructiveHint: true },
       remove_: { destructiveHint: true },
       complete_: { destructiveHint: true },
@@ -241,6 +241,42 @@ export class JiraMcpServer {
               {
                 type: "text",
                 text: `Error transitioning issue: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
+      "delete_issue",
+      "Delete a Jira issue permanently. Optionally deletes its subtasks as well.",
+      {
+        issueKey: z.string().describe("The Jira issue key to delete (e.g., PROJ-123)"),
+        deleteSubtasks: z
+          .boolean()
+          .optional()
+          .describe("If true, also deletes any subtasks (default: false)"),
+      },
+      async ({ issueKey, deleteSubtasks }) => {
+        try {
+          console.log(`Deleting issue ${issueKey}${deleteSubtasks ? " with subtasks" : ""}`);
+          await this.jiraService.deleteIssue(issueKey, deleteSubtasks);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Issue ${issueKey} deleted successfully${deleteSubtasks ? " (with subtasks)" : ""}`,
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error deleting issue ${issueKey}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error deleting issue: ${formatToolError(error)}`,
               },
             ],
           };
@@ -1522,7 +1558,7 @@ export class JiraMcpServer {
             content: [
               {
                 type: "text",
-                text: `Error searching Confluence pages: ${formatToolError(error)}`,
+                text: `Error searching Confluence pages with CQL: ${formatToolError(error)}`,
               },
             ],
           };
@@ -1811,8 +1847,57 @@ export class JiraMcpServer {
     );
 
     this.server.tool(
+      "link_confluence_page_to_issue",
+      'Add a Confluence page link to a Jira issue\'s "Linked work items" panel via the remote link API',
+      {
+        issueKey: z.string().describe("The Jira issue key to link to (e.g., PROJ-123)"),
+        pageId: z.string().describe("The ID of the Confluence page to link"),
+      },
+      async ({ issueKey, pageId }) => {
+        try {
+          console.log(`Linking Confluence page ${pageId} to issue ${issueKey}`);
+          const page = await this.confluenceService.getPage(pageId);
+          const webUrl = this.confluenceService.getPageWebUrl(this.atlassianBaseUrl, page);
+          const remoteLink = await this.jiraService.addRemoteLink(issueKey, {
+            url: webUrl,
+            title: page.title,
+            type: "page",
+          });
+          return {
+            content: [
+              {
+                type: "text",
+                text: JSON.stringify(
+                  {
+                    issueKey,
+                    pageId,
+                    pageTitle: page.title,
+                    webUrl,
+                    remoteLinkId: remoteLink.id,
+                  },
+                  null,
+                  2,
+                ),
+              },
+            ],
+          };
+        } catch (error) {
+          console.error(`Error linking Confluence page ${pageId} to issue ${issueKey}:`, error);
+          return {
+            content: [
+              {
+                type: "text",
+                text: `Error linking Confluence page to issue: ${formatToolError(error)}`,
+              },
+            ],
+          };
+        }
+      },
+    );
+
+    this.server.tool(
       "find_confluence_pages_for_issue",
-      "Search Confluence pages that mention a Jira issue key in their title",
+      "Search Confluence pages whose title matches a Jira issue key (exact title match)",
       {
         issueKey: z
           .string()
@@ -1821,7 +1906,7 @@ export class JiraMcpServer {
       async ({ issueKey }) => {
         try {
           console.log(`Searching Confluence pages for issue: ${issueKey}`);
-          const response = await this.confluenceService.findPagesLinkedToIssue(issueKey);
+          const response = await this.confluenceService.searchPagesByTitle(issueKey);
           console.log(`Found ${response.results.length} pages referencing ${issueKey}`);
           return {
             content: [{ type: "text", text: JSON.stringify(response, null, 2) }],

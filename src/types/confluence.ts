@@ -153,3 +153,56 @@ export interface ConfluenceSpaceSearchResponse {
     base: string;
   };
 }
+
+// v1 API types (used by CQL search at /wiki/rest/api/content/search)
+export interface ConfluenceV1Content {
+  id: string;
+  type: string;
+  status: string;
+  title: string;
+  space: {
+    id: string;
+    key: string;
+    name: string;
+    type: string;
+  };
+  version: {
+    number: number;
+    message?: string;
+    when?: string;
+    by?: {
+      displayName: string;
+      email?: string;
+      accountId: string;
+    };
+  };
+  body?: {
+    storage?: {
+      value: string;
+      representation: string;
+    };
+    view?: {
+      value: string;
+      representation: string;
+    };
+  };
+  _links: {
+    self: string;
+    webui?: string;
+    tinyui?: string;
+    base?: string;
+  };
+  _expandable?: Record<string, string | null>;
+}
+
+export interface ConfluenceV1SearchResponse {
+  results: ConfluenceV1Content[];
+  totalSize?: number;
+  start?: number;
+  limit?: number;
+  _links: {
+    base: string;
+    next?: string;
+    self?: string;
+  };
+}

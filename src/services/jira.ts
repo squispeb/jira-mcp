@@ -20,6 +20,8 @@ import {
   JiraIssueLinkTypesResponse,
   JiraIssueTypeResponse,
   JiraProject,
+  JiraRemoteLinkRequest,
+  JiraRemoteLinkResponse,
   JiraSearchParams,
   JiraSearchResponse,
   JiraSprint,
@@ -50,7 +52,7 @@ export class JiraService {
 
   private async request<T>(
     endpoint: string,
-    method: "GET" | "POST" | "PUT" = "GET",
+    method: "GET" | "POST" | "PUT" | "DELETE" = "GET",
     data?: any,
   ): Promise<T> {
     try {
@@ -651,6 +653,15 @@ export class JiraService {
   }
 
   /**
+   * Delete an issue by key, optionally including its subtasks
+   */
+  async deleteIssue(issueKey: string, deleteSubtasks: boolean = false): Promise<void> {
+    const endpoint = `/rest/api/3/issue/${issueKey}${deleteSubtasks ? "?deleteSubtasks=true" : ""}`;
+    await this.request<void>(endpoint, "DELETE");
+    await this.writeLog(`jira-delete-${issueKey}.json`, { issueKey, deleteSubtasks });
+  }
+
+  /**
    * Get list of projects
    */
   async getProjects(): Promise<JiraProject[]> {
@@ -920,6 +931,29 @@ export class JiraService {
     }
 
     await this.request<void>(endpoint, "POST", payload);
+  }
+
+  async addRemoteLink(
+    issueKey: string,
+    remoteObject: { url: string; title: string; type?: string },
+    application?: { type: string; linkSays: string },
+  ): Promise<JiraRemoteLinkResponse> {
+    const endpoint = `/rest/api/3/issue/${issueKey}/remotelink`;
+    const payload: JiraRemoteLinkRequest = {
+      globalId: `confluence-page-${remoteObject.url}`,
+      application: application ?? { type: "com.atlassian.confluence", linkSays: "Confluence" },
+      remoteObject: {
+        url: remoteObject.url,
+        title: remoteObject.title,
+        icon: {
+          url16x16: "https://atlassian.com/favicon.ico",
+        },
+        ...(remoteObject.type ? { type: remoteObject.type } : { type: "page" }),
+      },
+    };
+    const response = await this.request<JiraRemoteLinkResponse>(endpoint, "POST", payload);
+    await this.writeLog(`jira-remotelink-${issueKey}-${response.id}.json`, response);
+    return response;
   }
 
   async getAllBoards(
