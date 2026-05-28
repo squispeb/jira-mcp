@@ -130,7 +130,7 @@ export const AVAILABLE_TOOLS: ToolInfo[] = [
   },
   {
     name: "find_confluence_pages_for_issue",
-    description: "Search Confluence pages that mention a Jira issue key",
+    description: "Search Confluence pages by exact title match with a Jira issue key",
   },
   {
     name: "get_confluence_spaces",

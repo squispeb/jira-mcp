@@ -7,6 +7,7 @@ import {
   ConfluencePageUpdateRequest,
   ConfluenceSearchParams,
   ConfluenceSpaceSearchResponse,
+  ConfluenceV1SearchResponse,
 } from "~/types/confluence";
 
 export type ConfluenceLogSink = (name: string, value: unknown) => Promise<void> | void;
@@ -112,14 +113,14 @@ export class ConfluenceService {
     return response;
   }
 
-  async searchPagesWithCql(cql: string, limit: number = 25): Promise<ConfluencePageSearchResponse> {
+  async searchPagesWithCql(cql: string, limit: number = 25): Promise<ConfluenceV1SearchResponse> {
     const queryParams = new URLSearchParams();
     queryParams.append("cql", cql);
     queryParams.append("limit", String(limit));
     queryParams.append("expand", "body.storage");
 
     const endpoint = `/wiki/rest/api/content/search?${queryParams.toString()}`;
-    const response = await this.request<ConfluencePageSearchResponse>(endpoint);
+    const response = await this.request<ConfluenceV1SearchResponse>(endpoint);
     await this.writeLog(`confluence-cql-search-${new Date().toISOString()}.json`, response);
     return response;
   }
@@ -250,8 +251,8 @@ export class ConfluenceService {
     return response.results[0].id;
   }
 
-  async findPagesLinkedToIssue(issueKey: string): Promise<ConfluencePageSearchResponse> {
-    return this.searchPages({ title: issueKey });
+  async searchPagesByTitle(title: string): Promise<ConfluencePageSearchResponse> {
+    return this.searchPages({ title });
   }
 
   getPageWebUrl(baseUrl: string, page: ConfluencePage): string {
@@ -261,7 +262,7 @@ export class ConfluenceService {
     if (page._links?.tinyui) {
       return `${baseUrl}${page._links.tinyui}`;
     }
-    return `${baseUrl}/wiki/spaces/~space/pages/${page.id}`;
+    return `${baseUrl}/wiki/pages/${page.id}`;
   }
 }
 
@@ -284,7 +285,7 @@ interface ConfluenceErrorBody {
 function formatConfluenceErrorMessage(errorBody: unknown, statusText: string): string {
   const parsed = isConfluenceErrorBody(errorBody) ? errorBody : undefined;
 
-  const confluencErrors = Array.isArray(parsed?.errors)
+  const confluenceErrors = Array.isArray(parsed?.errors)
     ? parsed.errors.filter(isErrorObject).map((e) => {
         const detail = typeof e.detail === "string" ? e.detail : "";
         const title = typeof e.title === "string" ? e.title : "";
@@ -300,7 +301,7 @@ function formatConfluenceErrorMessage(errorBody: unknown, statusText: string): s
     ? parsed.data.errorMessages.filter(isNonEmptyString)
     : [];
 
-  const allMessages = [...confluencErrors, ...topLevelMessagesV2, ...topLevelMessagesV1];
+  const allMessages = [...confluenceErrors, ...topLevelMessagesV2, ...topLevelMessagesV1];
 
   const fieldMessages = isStringRecord(parsed?.data?.errors)
     ? Object.entries(parsed.data.errors)

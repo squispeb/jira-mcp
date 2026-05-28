@@ -1558,7 +1558,7 @@ export class JiraMcpServer {
             content: [
               {
                 type: "text",
-                text: `Error searching Confluence pages: ${formatToolError(error)}`,
+                text: `Error searching Confluence pages with CQL: ${formatToolError(error)}`,
               },
             ],
           };
@@ -1897,7 +1897,7 @@ export class JiraMcpServer {
 
     this.server.tool(
       "find_confluence_pages_for_issue",
-      "Search Confluence pages that mention a Jira issue key in their title",
+      "Search Confluence pages whose title matches a Jira issue key (exact title match)",
       {
         issueKey: z
           .string()
@@ -1906,7 +1906,7 @@ export class JiraMcpServer {
       async ({ issueKey }) => {
         try {
           console.log(`Searching Confluence pages for issue: ${issueKey}`);
-          const response = await this.confluenceService.findPagesLinkedToIssue(issueKey);
+          const response = await this.confluenceService.searchPagesByTitle(issueKey);
           console.log(`Found ${response.results.length} pages referencing ${issueKey}`);
           return {
             content: [{ type: "text", text: JSON.stringify(response, null, 2) }],
